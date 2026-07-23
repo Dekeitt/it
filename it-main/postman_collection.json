@@ -1,0 +1,116 @@
+{
+  "info": {
+    "name": "It API - collection",
+    "_postman_id": "it-api-collection",
+    "description": "Collection for the cleaning service API. Set environment variable baseUrl (e.g. http://localhost:8080 or https://it-production-385a.up.railway.app). Use Basic Auth with username {{basicUser}} and password {{basicPass}} if enabled.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Root",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/"
+      }
+    },
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/actuator/health"
+      }
+    },
+    {
+      "name": "List open jobs",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/jobs/open"
+      }
+    },
+    {
+      "name": "Create job",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Limpieza profunda\",\n  \"description\": \"Cocina y baños\",\n  \"priceCents\": 5000\n}"
+        },
+        "url": "{{baseUrl}}/api/jobs"
+      }
+    },
+    {
+      "name": "Accept job",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/api/jobs/:id/accept"
+      }
+    },
+    {
+      "name": "List cleaners",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/cleaners"
+      }
+    },
+    {
+      "name": "Create reservation",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"jobId\": 1,\n  \"cleanerEmail\": \"dev@example.com\",\n  \"startAt\": \"2026-06-01T10:00:00Z\",\n  \"durationMinutes\": 90\n}"
+        },
+        "url": "{{baseUrl}}/api/reservations"
+      }
+    },
+    {
+      "name": "List reservations (for logged user)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/reservations"
+      }
+    },
+    {
+      "name": "Create payment intent",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reservationId\": 1,\n  \"amountCents\": 5000\n}"
+        },
+        "url": "{{baseUrl}}/api/payments/create-intent"
+      }
+    },
+    {
+      "name": "Create review",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cleanerEmail\": \"dev@example.com\",\n  \"rating\": 5,\n  \"comment\": \"Excelente servicio\"\n}"
+        },
+        "url": "{{baseUrl}}/api/reviews"
+      }
+    }
+  ],
+  "auth": {
+    "type": "basic",
+    "basic": [
+      { "key": "username", "value": "{{basicUser}}" },
+      { "key": "password", "value": "{{basicPass}}" }
+    ]
+  }
+}
+

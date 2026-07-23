@@ -1,0 +1,2 @@
+web: java -jar target/it-0.0.1-SNAPSHOT.jar
+
