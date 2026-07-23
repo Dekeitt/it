@@ -8,6 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -18,6 +20,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/payments")
+@Tag(name = "Payment Webhooks", description = "Recepción de eventos de Stripe")
 public class PaymentWebhookController {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentWebhookController.class);
@@ -29,6 +32,7 @@ public class PaymentWebhookController {
     }
 
     @PostMapping("/webhook")
+    @Operation(summary = "Procesar webhook de Stripe")
     public ResponseEntity<?> handleWebhook(@RequestHeader(value = "Stripe-Signature", required = false) String sigHeader,
                                            @RequestBody String payload) {
         String secret = System.getenv("STRIPE_WEBHOOK_SECRET");
@@ -132,4 +136,3 @@ public class PaymentWebhookController {
         return sb.toString();
     }
 }
-
