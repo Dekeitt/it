@@ -8,11 +8,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/cleaners")
+@Tag(name = "Cleaners", description = "Gestión de cleaners")
 public class CleanerController {
 
     private final CleanerService cleanerService;
@@ -22,14 +25,15 @@ public class CleanerController {
     }
 
     @GetMapping
+    @Operation(summary = "Listar cleaners")
     public ResponseEntity<List<CleanerDto>> listCleaners() {
         return ResponseEntity.ok(cleanerService.listCleaners());
     }
 
     @PostMapping
+    @Operation(summary = "Crear un cleaner")
     public ResponseEntity<CleanerDto> createCleaner(@RequestBody CleanerDto dto) {
         CleanerDto created = cleanerService.createCleaner(dto);
         return ResponseEntity.ok(created);
     }
 }
-
