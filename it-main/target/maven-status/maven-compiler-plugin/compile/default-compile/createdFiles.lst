@@ -23,6 +23,7 @@ com/clean/it/repository/ReservationRepository.class
 com/clean/it/service/impl/ReviewServiceImpl.class
 com/clean/it/service/ReservationService.class
 com/clean/it/dto/AppDtos$ReservationRequest.class
+com/clean/it/controller/ReviewApiController.class
 com/clean/it/service/JobService.class
 com/clean/it/dto/JobDtos.class
 com/clean/it/dto/AppDtos$ReservationResponse.class
@@ -47,4 +48,5 @@ com/clean/it/ItApplication.class
 com/clean/it/controller/PaymentWebhookController.class
 com/clean/it/service/impl/JobServiceImpl.class
 com/clean/it/exception/ApiExceptionHandler.class
+com/clean/it/controller/HomeController.class
 com/clean/it/dto/AppDtos$PaymentResponse.class

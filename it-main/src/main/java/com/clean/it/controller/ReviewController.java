@@ -27,7 +27,7 @@ public class ReviewController {
     @Operation(summary = "Crear una reseña para un cleaner")
     public ResponseEntity<ReviewResponse> addReview(Authentication authentication, @PathVariable("email") String email, @Valid @RequestBody ReviewRequest req) {
         if (authentication == null || !authentication.isAuthenticated()) return ResponseEntity.status(401).build();
-        // ignore path email and use req.cleanerEmail for flexibility
+        req.setCleanerEmail(email);
         ReviewResponse resp = reviewService.addReview(authentication.getName(), req);
         return ResponseEntity.ok(resp);
     }

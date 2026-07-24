@@ -2,10 +2,12 @@
 /home/runner/work/it/it/it-main/src/main/java/com/clean/it/config/OpenApiConfig.java
 /home/runner/work/it/it/it-main/src/main/java/com/clean/it/config/RedisConfig.java
 /home/runner/work/it/it/it-main/src/main/java/com/clean/it/controller/CleanerController.java
+/home/runner/work/it/it/it-main/src/main/java/com/clean/it/controller/HomeController.java
 /home/runner/work/it/it/it-main/src/main/java/com/clean/it/controller/JobController.java
 /home/runner/work/it/it/it-main/src/main/java/com/clean/it/controller/PaymentController.java
 /home/runner/work/it/it/it-main/src/main/java/com/clean/it/controller/PaymentWebhookController.java
 /home/runner/work/it/it/it-main/src/main/java/com/clean/it/controller/ReservationController.java
+/home/runner/work/it/it/it-main/src/main/java/com/clean/it/controller/ReviewApiController.java
 /home/runner/work/it/it/it-main/src/main/java/com/clean/it/controller/ReviewController.java
 /home/runner/work/it/it/it-main/src/main/java/com/clean/it/domain/Cleaner.java
 /home/runner/work/it/it/it-main/src/main/java/com/clean/it/domain/Job.java

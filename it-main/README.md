@@ -26,6 +26,7 @@ Aplicación Spring Boot para gestión de:
 
 - Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 - OpenAPI JSON: `http://localhost:8080/v3/api-docs`
+- Root info endpoint: `http://localhost:8080/`
 
 ## Variables relevantes
 
@@ -40,3 +41,9 @@ Aplicación Spring Boot para gestión de:
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 
+## Endpoints destacados
+
+- `POST /api/jobs`
+- `GET /api/jobs/open`
+- `POST /api/reviews`
+- `GET /api/reviews/{email}`
