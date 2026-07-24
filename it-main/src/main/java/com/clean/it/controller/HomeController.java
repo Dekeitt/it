@@ -15,14 +15,23 @@ import java.util.Map;
 @RestController
 public class HomeController {
 
+    private static final String INDEX_HTML = loadIndexHtml();
+
+    private static String loadIndexHtml() {
+        try {
+            ClassPathResource resource = new ClassPathResource("static/index.html");
+            return new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            throw new IllegalStateException("Unable to load React UI from static/index.html", ex);
+        }
+    }
+
     @GetMapping(value = "/", produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> home() throws IOException {
-        ClassPathResource resource = new ClassPathResource("static/index.html");
-        String html = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    public ResponseEntity<String> home() {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .contentType(MediaType.TEXT_HTML)
-                .body(html);
+                .body(INDEX_HTML);
     }
 
     @GetMapping("/api/info")

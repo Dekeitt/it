@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.clean.it.ItApplicationTests
 -------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.895 s -- in com.clean.it.ItApplicationTests
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.881 s -- in com.clean.it.ItApplicationTests

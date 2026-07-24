@@ -127,11 +127,11 @@
 </head>
 <body>
 <div id="root"></div>
-<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script type="text/babel">
-const { useEffect, useMemo, useState } = React;
+const { useCallback, useEffect, useMemo, useState } = React;
 
 const screens = [
   { id: 'home', label: 'Inicio' },
@@ -207,7 +207,7 @@ function App() {
     payment: { reservationId: '', amountCents: 4500 },
   });
 
-  const request = async (path, options = {}) => {
+  const request = useCallback(async (path, options = {}) => {
     const headers = { ...(options.headers || {}), ...authHeader(auth) };
     if (!(options.body instanceof FormData) && options.body && !headers['Content-Type']) {
       headers['Content-Type'] = 'application/json';
@@ -220,9 +220,25 @@ function App() {
       throw new Error(error);
     }
     return body;
-  };
+  }, [auth]);
 
-  const loadMarketplace = async () => {
+  const loadReviews = useCallback(async (email) => {
+    if (!email) return;
+    try {
+      let data;
+      try {
+        data = await request(`/api/reviews/${encodeURIComponent(email)}`);
+      } catch (primaryError) {
+        data = await request(`/api/cleaners/${encodeURIComponent(email)}/reviews`);
+      }
+      setReviews(Array.isArray(data) ? data : []);
+    } catch (error) {
+      setReviews([]);
+      setMessage({ type: 'error', text: `Reseñas: ${error.message}` });
+    }
+  }, [request]);
+
+  const loadMarketplace = useCallback(async () => {
     setBusy(true);
     try {
       const [cleanerList, jobList] = await Promise.all([
@@ -231,21 +247,20 @@ function App() {
       ]);
       setCleaners(Array.isArray(cleanerList) ? cleanerList : []);
       setJobs(Array.isArray(jobList) ? jobList : []);
-      if (!selectedCleaner && Array.isArray(cleanerList) && cleanerList.length) {
-        setSelectedCleaner(cleanerList[0].email);
-        setReviewTarget(cleanerList[0].email);
-      }
       if (Array.isArray(cleanerList) && cleanerList.length) {
-        loadReviews(cleanerList[0].email).catch(() => null);
+        const firstCleaner = cleanerList[0].email;
+        setSelectedCleaner((current) => current || firstCleaner);
+        setReviewTarget((current) => current || firstCleaner);
+        loadReviews(firstCleaner).catch(() => null);
       }
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
     } finally {
       setBusy(false);
     }
-  };
+  }, [loadReviews, request]);
 
-  const loadReservations = async () => {
+  const loadReservations = useCallback(async () => {
     try {
       const data = await request('/api/reservations');
       setReservations(Array.isArray(data) ? data : []);
@@ -253,9 +268,9 @@ function App() {
       setReservations([]);
       setMessage({ type: 'error', text: `Reservas: ${error.message}` });
     }
-  };
+  }, [request]);
 
-  const loadPayments = async (reservationId = '') => {
+  const loadPayments = useCallback(async (reservationId = '') => {
     try {
       const query = reservationId ? `?reservationId=${encodeURIComponent(reservationId)}` : '';
       const data = await request(`/api/payments${query}`);
@@ -264,18 +279,7 @@ function App() {
       setPayments([]);
       setMessage({ type: 'error', text: `Pagos: ${error.message}` });
     }
-  };
-
-  const loadReviews = async (email) => {
-    if (!email) return;
-    try {
-      const data = await request(`/api/reviews/${encodeURIComponent(email)}`).catch(() => request(`/api/cleaners/${encodeURIComponent(email)}/reviews`));
-      setReviews(Array.isArray(data) ? data : []);
-    } catch (error) {
-      setReviews([]);
-      setMessage({ type: 'error', text: `Reseñas: ${error.message}` });
-    }
-  };
+  }, [request]);
 
   useEffect(() => {
     saveAuth(auth);
@@ -283,13 +287,19 @@ function App() {
 
   useEffect(() => {
     loadMarketplace();
-  }, []);
+  }, [loadMarketplace]);
 
   useEffect(() => {
     if (screen === 'client') loadReservations();
+  }, [loadReservations, screen]);
+
+  useEffect(() => {
     if (screen === 'payments') loadPayments(paymentReservationId);
+  }, [loadPayments, paymentReservationId, screen]);
+
+  useEffect(() => {
     if (screen === 'reviews' && reviewTarget) loadReviews(reviewTarget);
-  }, [screen]);
+  }, [loadReviews, reviewTarget, screen]);
 
   const featured = useMemo(() => cleaners.slice(0, 4), [cleaners]);
   const filteredCleaners = useMemo(
@@ -425,8 +435,6 @@ function App() {
       setBusy(false);
     }
   };
-
-  const activeCleanerReviews = reviews.length ? reviews : [];
 
   return (
     <div className="app">
@@ -828,7 +836,7 @@ function App() {
                 <div className="card">
                   <div className="section-title"><h3>Reseñas del cleaner</h3><p>{reviewTarget || 'Selecciona un cleaner'}</p></div>
                   <div className="list scroll">
-                    {activeCleanerReviews.map((review) => (
+                    {reviews.map((review) => (
                       <div key={review.id} className="review-card">
                         <div className="card-top">
                           <div>
@@ -840,7 +848,7 @@ function App() {
                         <p>{review.comment || 'Sin comentario'}</p>
                       </div>
                     ))}
-                    {!activeCleanerReviews.length && <div className="muted">No hay reseñas para mostrar todavía.</div>}
+                    {!reviews.length && <div className="muted">No hay reseñas para mostrar todavía.</div>}
                   </div>
                 </div>
               </div>
@@ -937,8 +945,8 @@ function App() {
                           <span className="tag">Estado {job.status}</span>
                         </div>
                         <div className="actions">
-                          <button className="primary" onClick={() => acceptJob(job.id)}>Accept</button>
-                          <button className="ghost" onClick={() => { setSelectedCleaner(job.cleanerEmail || selectedCleaner); setScreen('reviews'); }}>Reviews</button>
+                          <button className="primary" onClick={() => acceptJob(job.id)}>Aceptar</button>
+                          <button className="ghost" onClick={() => { setSelectedCleaner(job.cleanerEmail || selectedCleaner); setScreen('reviews'); }}>Reseñas</button>
                         </div>
                       </div>
                     ))}
@@ -995,7 +1003,7 @@ function App() {
                   </div>
                 </div>
                 <div className="card">
-                  <div className="section-title"><h3>Rutas UI</h3><p>All screens</p></div>
+                  <div className="section-title"><h3>Rutas UI</h3><p>Todas las pantallas</p></div>
                   <div className="list">
                     {screens.map((item) => <div key={item.id} className="endpoint-card"><strong>{item.label}</strong></div>)}
                   </div>
