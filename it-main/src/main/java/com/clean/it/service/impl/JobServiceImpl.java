@@ -38,9 +38,9 @@ public class JobServiceImpl implements JobService {
         try {
             Job job = new Job();
             job.setClientEmail(clientEmail);
-            job.setTitle(req.getTitle() != null && !req.getTitle().isBlank() ? req.getTitle() : req.getDescription());
+            job.setTitle(req.getTitle() != null && !req.getTitle().isBlank() ? req.getTitle() : null);
             job.setDescription(req.getDescription());
-            job.setPriceCents(req.getPriceCents() != null ? req.getPriceCents() : 0L);
+            job.setPriceCents(req.getPriceCents());
             job.setStatus(JobStatus.OPEN);
             Job saved = jobRepository.save(job);
             JobResponse resp = toDto(saved);
