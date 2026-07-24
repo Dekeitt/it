@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
@@ -45,7 +46,8 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health", "/postman_collection.json").permitAll()
+                        .requestMatchers("/", "/index.html", "/api/info", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health", "/postman_collection.json").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/cleaners", "/api/cleaners/**", "/api/reviews/**", "/api/jobs/open").permitAll()
                         .requestMatchers("/ws/**", "/sockjs/**", "/topic/**").permitAll()
                         .anyRequest().authenticated()
                 )

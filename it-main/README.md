@@ -24,9 +24,10 @@ Aplicación Spring Boot para gestión de:
 
 ## Documentación de la API
 
+- Web app React: `http://localhost:8080/`
 - Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 - OpenAPI JSON: `http://localhost:8080/v3/api-docs`
-- Root info endpoint: `http://localhost:8080/`
+- Root info endpoint: `http://localhost:8080/api/info`
 
 ## Variables relevantes
 
@@ -43,7 +44,12 @@ Aplicación Spring Boot para gestión de:
 
 ## Endpoints destacados
 
+- `GET /api/cleaners`
 - `POST /api/jobs`
 - `GET /api/jobs/open`
+- `POST /api/reservations`
+- `GET /api/reservations`
+- `POST /api/payments/create-intent`
+- `GET /api/payments`
 - `POST /api/reviews`
 - `GET /api/reviews/{email}`
