@@ -45,6 +45,7 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health", "/postman_collection.json").permitAll()
                         .requestMatchers("/ws/**", "/sockjs/**", "/topic/**").permitAll()
                         .anyRequest().authenticated()
                 )
@@ -109,4 +110,3 @@ public class SecurityConfig {
         return new InMemoryUserDetailsManager(user);
     }
 }
-
