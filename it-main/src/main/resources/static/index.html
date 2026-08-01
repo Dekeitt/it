@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>it | Cleaners Marketplace</title>
+  <meta name="description" content="Marketplace para reservar servicios de limpieza, gestionar jobs y pagos." />
+  <meta name="theme-color" content="#08111f" />
+  <link rel="stylesheet" href="/ui.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <style>
@@ -153,14 +156,14 @@ const sampleQuotes = [
 
 function loadAuth() {
   try {
-    return JSON.parse(localStorage.getItem('it-auth') || '{"mode":"none","token":"","basicUser":"","basicPassword":"","email":"client@example.com"}');
+    return JSON.parse(sessionStorage.getItem('it-auth') || '{"mode":"none","token":"","basicUser":"","basicPassword":"","email":"client@example.com"}');
   } catch {
     return { mode: 'none', token: '', basicUser: '', basicPassword: '', email: 'client@example.com' };
   }
 }
 
 function saveAuth(next) {
-  localStorage.setItem('it-auth', JSON.stringify(next));
+  sessionStorage.setItem('it-auth', JSON.stringify(next));
 }
 
 function money(cents) {
@@ -204,7 +207,7 @@ function App() {
     job: { title: '', description: '', priceCents: 4500 },
     reservation: { jobId: '', cleanerEmail: '', startAt: '', durationMinutes: 120 },
     review: { cleanerEmail: '', rating: 5, comment: '' },
-    payment: { reservationId: '', amountCents: 4500 },
+    payment: { reservationId: '' },
   });
 
   const request = useCallback(async (path, options = {}) => {
@@ -424,10 +427,9 @@ function App() {
     try {
       const payload = {
         reservationId: Number(forms.payment.reservationId),
-        amountCents: Number(forms.payment.amountCents),
       };
       const result = await request('/api/payments/create-intent', { method: 'POST', body: JSON.stringify(payload) });
-      setMessage({ type: 'ok', text: `Client secret generado: ${result.clientSecret || 'n/a'}` });
+      setMessage({ type: 'ok', text: result.clientSecret ? 'Intent de pago generado. Continúa con Stripe Elements para completar el cobro.' : 'Intent de pago generado.' });
       loadPayments(forms.payment.reservationId);
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
@@ -492,7 +494,7 @@ function App() {
         </aside>
 
         <main className="screen">
-          {message?.text && <div className={`message ${message.type}`}>{message.text}</div>}
+          {message?.text && <div className={`message ${message.type}`} role="status" aria-live="polite">{message.text}</div>}
 
           {screen === 'home' && (
             <>
@@ -754,7 +756,7 @@ function App() {
                           <span className="tag">Cliente {reservation.clientEmail}</span>
                         </div>
                         <div className="actions">
-                          <button className="primary" onClick={() => { setPaymentReservationId(reservation.id); setForms((current) => ({ ...current, payment: { ...current.payment, reservationId: reservation.id, amountCents: current.payment.amountCents || 4500 } })); setScreen('payments'); }}>Cobrar</button>
+                          <button className="primary" onClick={() => { setPaymentReservationId(reservation.id); setForms((current) => ({ ...current, payment: { reservationId: reservation.id } })); setScreen('payments'); }}>Cobrar</button>
                         </div>
                       </div>
                     ))}
@@ -778,10 +780,8 @@ function App() {
                 <div className="card">
                   <div className="section-title"><h3>Crear payment intent</h3><p>POST /api/payments/create-intent</p></div>
                   <form onSubmit={submitPayment} className="list">
-                    <div className="row">
-                      <input className="input" type="number" placeholder="Reservation ID" value={forms.payment.reservationId} onChange={(e) => setForm('payment', 'reservationId', e.target.value)} required />
-                      <input className="input" type="number" placeholder="Importe en céntimos" value={forms.payment.amountCents} onChange={(e) => setForm('payment', 'amountCents', e.target.value)} required />
-                    </div>
+                    <input className="input" type="number" min="1" placeholder="Reservation ID" value={forms.payment.reservationId} onChange={(e) => setForm('payment', 'reservationId', e.target.value)} required />
+                    <p className="small">El importe se calcula en el servidor a partir del job asociado; no puede modificarse desde el navegador.</p>
                     <button className="primary" type="submit">Generar intent</button>
                   </form>
                 </div>

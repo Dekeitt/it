@@ -1,27 +1,39 @@
 server:
-  # Use PORT provided by Railway (or default 8080 locally)
   port: ${PORT:8080}
+  shutdown: graceful
+  error:
+    include-message: never
 
 spring:
   application:
     name: it
-  redis:
-    # Allow overriding Redis connection via env vars on Railway
-    host: ${SPRING_REDIS_HOST:localhost}
-    port: ${SPRING_REDIS_PORT:6379}
-    password: ${SPRING_REDIS_PASSWORD:}
-  # Jackson serialization settings are configured programmatically in RedisConfig
-  datasource:
-    # Allow using an external JDBC url (Postgres on Railway) or fall back to H2 in-memory for local dev
-    url: ${SPRING_DATASOURCE_URL:jdbc:h2:mem:itdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
-    username: ${SPRING_DATASOURCE_USERNAME:sa}
-    password: ${SPRING_DATASOURCE_PASSWORD:}
+  profiles:
+    default: local
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  jackson:
+    default-property-inclusion: non_null
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
 
 security:
   jwt:
-    secret: ${JWT_SECRET:very-secret-change-me}
+    secret: ${JWT_SECRET:}
 
+stripe:
+  secret-key: ${STRIPE_SECRET_KEY:}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:}

@@ -1,11 +1,16 @@
 FROM eclipse-temurin:17-jdk-jammy AS build
-WORKDIR /app
-COPY . .
-RUN chmod +x mvnw && ./mvnw -DskipTests package -DskipTests=true
+WORKDIR /workspace
+COPY .mvn .mvn
+COPY mvnw pom.xml ./
+RUN chmod +x mvnw && ./mvnw -B -ntp dependency:go-offline
+COPY src src
+RUN ./mvnw -B -ntp clean package
 
 FROM eclipse-temurin:17-jre-jammy
+RUN useradd --system --uid 10001 --create-home appuser
 WORKDIR /app
-COPY --from=build /app/target/it-0.0.1-SNAPSHOT.jar app.jar
-ENV JAVA_OPTS=""
-ENTRYPOINT ["sh","-c","java $JAVA_OPTS -jar /app/app.jar"]
-
+COPY --from=build /workspace/target/it-0.0.1-SNAPSHOT.jar app.jar
+USER appuser
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"
+EXPOSE 8080
+ENTRYPOINT ["sh","-c","exec java $JAVA_OPTS -jar /app/app.jar"]

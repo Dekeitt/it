@@ -74,7 +74,7 @@ public class JobServiceImpl implements JobService {
                 throw new IllegalStateException("Could not acquire lock, try again");
             }
 
-            Job job = jobRepository.findById(jobId).orElseThrow(() -> new IllegalArgumentException("Job not found"));
+            Job job = jobRepository.findByIdForUpdate(jobId).orElseThrow(() -> new IllegalArgumentException("Job not found"));
             if (job.getStatus() != JobStatus.OPEN) {
                 throw new IllegalStateException("Job is not open");
             }

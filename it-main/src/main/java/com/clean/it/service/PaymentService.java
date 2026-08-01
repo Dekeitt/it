@@ -4,6 +4,6 @@ import com.clean.it.dto.AppDtos.PaymentRequest;
 import com.clean.it.dto.AppDtos.PaymentResponse;
 
 public interface PaymentService {
-    PaymentResponse createPaymentIntent(PaymentRequest req);
+    PaymentResponse createPaymentIntent(String userEmail, PaymentRequest req);
 }
 

@@ -1,5 +1,6 @@
 package com.clean.it.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.Instant;
 
@@ -17,9 +18,11 @@ public class Payment {
 
     private String stripePaymentIntentId;
 
+    @JsonIgnore
     private String clientSecret;
     @Lob
     @Column(columnDefinition = "text")
+    @JsonIgnore
     private String rawJson;
 
     private String status;

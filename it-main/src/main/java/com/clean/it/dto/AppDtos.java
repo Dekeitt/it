@@ -23,11 +23,11 @@ public final class AppDtos {
     public static class ReservationRequest {
         @NotNull
         private Long jobId;
-        @NotBlank
+        @NotBlank @Email
         private String cleanerEmail;
-        @NotNull
+        @NotNull @Future
         private Instant startAt;
-        @NotNull
+        @NotNull @Min(30) @Max(1440)
         private Integer durationMinutes;
         public Long getJobId() { return jobId; }
         public void setJobId(Long jobId) { this.jobId = jobId; }
@@ -66,7 +66,7 @@ public final class AppDtos {
     public static class PaymentRequest {
         @NotNull
         private Long reservationId;
-        @NotNull
+        // Kept temporarily for backwards compatibility. The server derives the amount from the job.
         private Integer amountCents;
         public Long getReservationId() { return reservationId; }
         public void setReservationId(Long reservationId) { this.reservationId = reservationId; }
