@@ -17,3 +17,10 @@ spring:
 security:
   jwt:
     secret: ${JWT_SECRET:local-development-secret-change-me-32}
+    issuer: ${JWT_ISSUER:clean-it-local}
+    audience: ${JWT_AUDIENCE:clean-it-api}
+    jwk-set-uri: ""
+  basic:
+    enabled: ${ALLOW_BASIC_AUTH:false}
+    username: ${BASIC_AUTH_USERNAME:}
+    password: ${BASIC_AUTH_PASSWORD:}

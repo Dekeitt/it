@@ -7,11 +7,10 @@ import java.util.Optional;
 
 public interface PaymentStore {
     Optional<Payment> findByStripePaymentIntentId(String id);
-    Payment savePayment(Payment p);
-    Optional<Payment> findById(Long id);
-    List<Payment> findByReservationId(Long reservationId);
-    List<Payment> findAll();
-    boolean eventExists(String eventId);
-    void saveEvent(String eventId, String type);
+    Optional<Payment> findFirstByReservationId(Long reservationId);
+    Optional<Payment> findByIdVisibleToUser(Long id, String email);
+    List<Payment> findVisibleToUser(String email);
+    List<Payment> findByReservationIdVisibleToUser(Long reservationId, String email);
+    Payment savePayment(Payment payment);
 }
 

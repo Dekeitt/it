@@ -1,8 +1,6 @@
 package com.clean.it.service.impl;
 
 import com.clean.it.domain.Payment;
-import com.clean.it.domain.PaymentEvent;
-import com.clean.it.repository.PaymentEventRepository;
 import com.clean.it.repository.PaymentRepository;
 import com.clean.it.service.PaymentStore;
 import org.springframework.stereotype.Service;
@@ -14,11 +12,9 @@ import java.util.Optional;
 public class PaymentStoreJpa implements PaymentStore {
 
     private final PaymentRepository paymentRepository;
-    private final PaymentEventRepository paymentEventRepository;
 
-    public PaymentStoreJpa(PaymentRepository paymentRepository, PaymentEventRepository paymentEventRepository) {
+    public PaymentStoreJpa(PaymentRepository paymentRepository) {
         this.paymentRepository = paymentRepository;
-        this.paymentEventRepository = paymentEventRepository;
     }
 
     @Override
@@ -27,36 +23,27 @@ public class PaymentStoreJpa implements PaymentStore {
     }
 
     @Override
-    public Payment savePayment(Payment p) {
-        return paymentRepository.save(p);
+    public Optional<Payment> findFirstByReservationId(Long reservationId) {
+        return paymentRepository.findFirstByReservationId(reservationId);
     }
 
     @Override
-    public Optional<Payment> findById(Long id) {
-        return paymentRepository.findById(id);
+    public Optional<Payment> findByIdVisibleToUser(Long id, String email) {
+        return paymentRepository.findByIdVisibleToUser(id, email);
     }
 
     @Override
-    public List<Payment> findByReservationId(Long reservationId) {
-        return paymentRepository.findByReservationId(reservationId);
+    public List<Payment> findVisibleToUser(String email) {
+        return paymentRepository.findVisibleToUser(email);
     }
 
     @Override
-    public List<Payment> findAll() {
-        return paymentRepository.findAll();
+    public List<Payment> findByReservationIdVisibleToUser(Long reservationId, String email) {
+        return paymentRepository.findByReservationIdVisibleToUser(reservationId, email);
     }
 
     @Override
-    public boolean eventExists(String eventId) {
-        return paymentEventRepository.existsByEventId(eventId);
-    }
-
-    @Override
-    public void saveEvent(String eventId, String type) {
-        PaymentEvent pe = new PaymentEvent();
-        pe.setEventId(eventId);
-        pe.setType(type);
-        paymentEventRepository.save(pe);
+    public Payment savePayment(Payment payment) {
+        return paymentRepository.save(payment);
     }
 }
-
