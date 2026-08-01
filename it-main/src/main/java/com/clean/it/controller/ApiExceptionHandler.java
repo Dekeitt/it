@@ -43,6 +43,19 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.CONFLICT, "Operation conflict", detail);
     }
 
+    @ExceptionHandler(Exception.class)
+    ProblemDetail internalServerError(Exception exception) {
+        ProblemDetail problem = problem(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error",
+                exception.getMessage());
+        if ("true".equalsIgnoreCase(System.getenv("SHOW_STACKTRACE"))) {
+            java.io.StringWriter sw = new java.io.StringWriter();
+            java.io.PrintWriter pw = new java.io.PrintWriter(sw);
+            exception.printStackTrace(pw);
+            problem.setProperty("trace", sw.toString());
+        }
+        return problem;
+    }
+
     private ProblemDetail problem(HttpStatus status, String title, String detail) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status,
                 detail == null || detail.isBlank() ? status.getReasonPhrase() : detail);
