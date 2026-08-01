@@ -1,14 +1,20 @@
 package com.clean.it.service.impl;
 
+import com.clean.it.domain.Job;
+import com.clean.it.domain.Payment;
+import com.clean.it.domain.Reservation;
 import com.clean.it.dto.AppDtos.PaymentRequest;
 import com.clean.it.dto.AppDtos.PaymentResponse;
+import com.clean.it.repository.JobRepository;
+import com.clean.it.repository.PaymentRepository;
+import com.clean.it.repository.ReservationRepository;
 import com.clean.it.service.PaymentService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.clean.it.domain.Payment;
-import com.clean.it.repository.PaymentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -26,22 +32,40 @@ public class PaymentServiceImpl implements PaymentService {
     private static final ObjectMapper mapper = new ObjectMapper();
 
     private final PaymentRepository paymentRepository;
+    private final ReservationRepository reservationRepository;
+    private final JobRepository jobRepository;
+    private final String stripeSecretKey;
 
-    public PaymentServiceImpl(PaymentRepository paymentRepository) {
+    public PaymentServiceImpl(PaymentRepository paymentRepository,
+                              ReservationRepository reservationRepository,
+                              JobRepository jobRepository,
+                              @Value("${stripe.secret-key:}") String stripeSecretKey) {
         this.paymentRepository = paymentRepository;
+        this.reservationRepository = reservationRepository;
+        this.jobRepository = jobRepository;
+        this.stripeSecretKey = stripeSecretKey;
     }
 
     @Override
-    public PaymentResponse createPaymentIntent(PaymentRequest req) {
-        String apiKey = System.getenv("STRIPE_SECRET_KEY");
-        if (apiKey == null || apiKey.isBlank()) {
-            log.warn("STRIPE_SECRET_KEY not configured, cannot create real PaymentIntent");
-            throw new IllegalStateException("Stripe not configured: set STRIPE_SECRET_KEY environment variable to enable payments");
+    public PaymentResponse createPaymentIntent(String userEmail, PaymentRequest req) {
+        Reservation reservation = reservationRepository.findById(req.getReservationId())
+                .orElseThrow(() -> new IllegalArgumentException("Reservation not found"));
+        if (reservation.getClientEmail() == null || !reservation.getClientEmail().equalsIgnoreCase(userEmail)) {
+            throw new AccessDeniedException("Only the reservation client can create its payment");
+        }
+        Job job = jobRepository.findById(reservation.getJobId())
+                .orElseThrow(() -> new IllegalStateException("Job linked to reservation not found"));
+        long amountCents = job.getPriceCents() == null ? 0 : job.getPriceCents();
+        if (amountCents <= 0) {
+            throw new IllegalStateException("Reservation has no valid payable amount");
+        }
+        if (stripeSecretKey.isBlank()) {
+            throw new IllegalStateException("Stripe is not configured");
         }
 
         try {
             String form = new StringBuilder()
-                    .append("amount=").append(URLEncoder.encode(String.valueOf(req.getAmountCents()), StandardCharsets.UTF_8))
+                    .append("amount=").append(URLEncoder.encode(String.valueOf(amountCents), StandardCharsets.UTF_8))
                     .append("&currency=").append(URLEncoder.encode("eur", StandardCharsets.UTF_8))
                     .append("&automatic_payment_methods[enabled]=true")
                     .append("&metadata[reservationId]=")
@@ -50,43 +74,34 @@ public class PaymentServiceImpl implements PaymentService {
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create("https://api.stripe.com/v1/payment_intents"))
-                    .header("Authorization", "Bearer " + apiKey)
+                    .header("Authorization", "Bearer " + stripeSecretKey)
                     .header("Content-Type", "application/x-www-form-urlencoded")
                     .POST(HttpRequest.BodyPublishers.ofString(form))
                     .build();
 
-            HttpClient client = HttpClient.newHttpClient();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                JsonNode node = mapper.readTree(response.body());
-                String clientSecret = node.path("client_secret").asText(null);
-                String stripeIntentId = node.path("id").asText(null);
-                String status = node.path("status").asText(null);
-
-                // persist payment record
-                try {
-                    Payment p = new Payment();
-                    p.setReservationId(req.getReservationId());
-                    p.setAmountCents(req.getAmountCents().longValue());
-                    p.setStripePaymentIntentId(stripeIntentId);
-                    p.setClientSecret(clientSecret);
-                    p.setStatus(status != null ? status : "created");
-                    paymentRepository.save(p);
-                } catch (Exception e) {
-                    log.error("Failed to persist payment record", e);
-                }
-
-                PaymentResponse resp = new PaymentResponse();
-                resp.setClientSecret(clientSecret);
-                return resp;
-            } else {
+            HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 log.error("Stripe API returned status {}: {}", response.statusCode(), response.body());
-                throw new RuntimeException("Stripe API error: status=" + response.statusCode());
+                throw new IllegalStateException("Stripe API error: status=" + response.statusCode());
             }
-        } catch (IOException | InterruptedException e) {
-            log.error("Error calling Stripe API", e);
-            throw new RuntimeException("Failed to create payment intent: " + e.getMessage(), e);
+
+            JsonNode node = mapper.readTree(response.body());
+            Payment payment = new Payment();
+            payment.setReservationId(req.getReservationId());
+            payment.setAmountCents(amountCents);
+            payment.setStripePaymentIntentId(node.path("id").asText(null));
+            payment.setClientSecret(node.path("client_secret").asText(null));
+            payment.setStatus(node.path("status").asText("created"));
+            paymentRepository.save(payment);
+
+            PaymentResponse result = new PaymentResponse();
+            result.setClientSecret(payment.getClientSecret());
+            return result;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Payment request interrupted", e);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to create payment intent", e);
         }
     }
 }
-

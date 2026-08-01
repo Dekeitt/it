@@ -3,6 +3,10 @@ package com.clean.it.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,8 +59,9 @@ public class PaymentWebhookControllerTest {
 
     @Test
     public void webhookProcessesEventAndIsIdempotent() throws Exception {
+        String secret = "whsec-test-secret";
         InMemoryStore store = new InMemoryStore();
-        com.clean.it.controller.PaymentWebhookController controller = new com.clean.it.controller.PaymentWebhookController(store);
+        com.clean.it.controller.PaymentWebhookController controller = new com.clean.it.controller.PaymentWebhookController(store, secret);
 
         // create a payment record as if created earlier
         com.clean.it.domain.Payment p = new com.clean.it.domain.Payment();
@@ -76,20 +81,24 @@ public class PaymentWebhookControllerTest {
                         ))
         );
 
-        // call webhook first time
-        controller.handleWebhook(null, payload);
+        long timestamp = Instant.now().getEpochSecond();
+        String signature = "t=" + timestamp + ",v1=" + sign(timestamp + "." + payload, secret);
 
-        // verify payment updated and event recorded
-        com.clean.it.domain.Payment saved = store.findByStripePaymentIntentId("pi_test_123").orElseThrow();
-        assertThat(saved.getStatus()).isEqualTo("succeeded");
+        assertThat(controller.handleWebhook(signature, payload).getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(store.findByStripePaymentIntentId("pi_test_123").orElseThrow().getStatus()).isEqualTo("succeeded");
         assertThat(store.eventExists("evt_test_1")).isTrue();
+        assertThat(controller.handleWebhook(signature, payload).getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(store.events).hasSize(1);
+    }
 
-        // call webhook again (duplicate) - should be idempotent
-        controller.handleWebhook(null, payload);
-
-        // still only one event record
-        assertThat(store.eventExists("evt_test_1")).isTrue();
+    private static String sign(String value, String secret) throws Exception {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        StringBuilder result = new StringBuilder();
+        for (byte b : mac.doFinal(value.getBytes(StandardCharsets.UTF_8))) {
+            result.append(String.format("%02x", b));
+        }
+        return result.toString();
     }
 }
-
 

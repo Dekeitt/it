@@ -10,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.Duration;
-import java.util.List;
 
 @Service
 public class ReservationServiceImpl implements ReservationService {
@@ -24,11 +23,16 @@ public class ReservationServiceImpl implements ReservationService {
     @Override
     @Transactional
     public ReservationResponse reserve(String clientEmail, ReservationRequest req) {
-        // simple availability check: ensure cleaner has no reservation overlapping the requested slot
         Instant start = req.getStartAt();
         Instant end = start.plus(Duration.ofMinutes(req.getDurationMinutes()));
-        List<Reservation> overlapping = reservationRepository.findByCleanerEmailAndStartAtBetween(req.getCleanerEmail(), start.minus(Duration.ofMinutes(1)), end.minus(Duration.ofMinutes(1)));
-        if (!overlapping.isEmpty()) {
+        boolean overlaps = reservationRepository.findByCleanerEmail(req.getCleanerEmail()).stream()
+                .filter(existing -> !"CANCELLED".equalsIgnoreCase(existing.getStatus()))
+                .anyMatch(existing -> {
+                    Instant existingEnd = existing.getStartAt()
+                            .plus(Duration.ofMinutes(existing.getDurationMinutes()));
+                    return start.isBefore(existingEnd) && existing.getStartAt().isBefore(end);
+                });
+        if (overlaps) {
             throw new IllegalStateException("Cleaner not available at requested time");
         }
 
@@ -63,4 +67,3 @@ public class ReservationServiceImpl implements ReservationService {
         return resp;
     }
 }
-
