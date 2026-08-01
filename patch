@@ -1,0 +1,1465 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000..fd1db20
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,26 @@
++name: CI
++
++on:
++  push:
++  pull_request:
++
++permissions:
++  contents: read
++
++jobs:
++  verify:
++    runs-on: ubuntu-latest
++    defaults:
++      run:
++        working-directory: it-main
++    steps:
++      - uses: actions/checkout@v4
++      - uses: actions/setup-java@v4
++        with:
++          distribution: temurin
++          java-version: "17"
++          cache: maven
++      - name: Verify
++        run: ./mvnw -B -ntp clean verify -Dspring.profiles.active=test
++      - name: Build container
++        run: docker build -t clean-it:${{ github.sha }} .
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..6de6923
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,20 @@
++# Build output
++**/target/
++
++# IDEs
++.idea/
++.vscode/
++*.iml
++.classpath
++.project
++.settings/
++
++# Local configuration and secrets
++.env
++.env.*
++!.env.example
++**/application-local-overrides.yaml
++
++# OS
++.DS_Store
++Thumbs.db
+diff --git a/PATCH_NOTES.md b/PATCH_NOTES.md
+new file mode 100644
+index 0000000..37dc463
+--- /dev/null
++++ b/PATCH_NOTES.md
+@@ -0,0 +1,13 @@
++# Contenido del patch
++
++Incluye seguridad de JWT y Stripe, autorización de pagos, detección completa de solapes, bloqueos pesimistas, perfiles por entorno, Flyway, Docker/CI y mejoras visuales y de accesibilidad.
++
++No mueve `it-main/` a la raíz ni reorganiza todos los paquetes por funcionalidad: esas operaciones producen un diff masivo y conviene hacerlas después en un commit separado con `git mv`.
++
++Después de aplicarlo, elimina artefactos ya versionados:
++
++```bash
++git rm -r --cached it-main/target
++git add .
++git commit -m "Harden backend, payments, CI and UI"
++```
+diff --git a/README.md b/README.md
+new file mode 100644
+index 0000000..020d273
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,38 @@
++# Clean IT
++
++Marketplace de servicios de limpieza construido con Spring Boot, PostgreSQL, Redis y una SPA React ligera.
++
++## Arranque local
++
++```bash
++cd it-main
++./mvnw spring-boot:run
++```
++
++La configuración local usa H2. Para levantar PostgreSQL y Redis:
++
++```bash
++docker compose up -d
++```
++
++## Comprobaciones
++
++```bash
++./mvnw clean verify -Dspring.profiles.active=test
++docker build -t clean-it .
++```
++
++## Producción
++
++Copia `.env.example`, configura secretos reales y activa `SPRING_PROFILES_ACTIVE=prod`. Nunca publiques el archivo `.env`.
++
++- Aplicación: `http://localhost:8080/`
++- Swagger: `http://localhost:8080/swagger-ui/index.html`
++- Health: `http://localhost:8080/actuator/health`
++
++## Decisiones de seguridad incluidas
++
++- El importe de Stripe se deriva del job almacenado, no del navegador.
++- Los secretos de pago y JSON crudo no se serializan en la API.
++- Las reservas se comprueban bajo bloqueo de base de datos y con detección completa de solapes.
++- Producción usa variables obligatorias y `ddl-auto=validate`.
+diff --git a/it-main/.dockerignore b/it-main/.dockerignore
+new file mode 100644
+index 0000000..71a80b9
+--- /dev/null
++++ b/it-main/.dockerignore
+@@ -0,0 +1,11 @@
++.git
++.github
++target
++.idea
++.vscode
++*.iml
++.env
++README.md
++postman_collection.json
++run_jwt_test.py
++run_jwt_test.sh
+diff --git a/it-main/.env.example b/it-main/.env.example
+new file mode 100644
+index 0000000..13ab44a
+--- /dev/null
++++ b/it-main/.env.example
+@@ -0,0 +1,12 @@
++SPRING_PROFILES_ACTIVE=prod
++PORT=8080
++SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/it
++SPRING_DATASOURCE_USERNAME=it
++SPRING_DATASOURCE_PASSWORD=change-me
++SPRING_REDIS_HOST=localhost
++SPRING_REDIS_PORT=6379
++SPRING_REDIS_PASSWORD=
++JWT_SECRET=replace-with-at-least-32-random-characters
++STRIPE_SECRET_KEY=sk_test_replace_me
++STRIPE_WEBHOOK_SECRET=whsec_replace_me
++ALLOW_BASIC_AUTH=false
+diff --git a/it-main/Dockerfile b/it-main/Dockerfile
+index 15147b3..79e219c 100644
+--- a/it-main/Dockerfile
++++ b/it-main/Dockerfile
+@@ -1,10 +1,16 @@
+ FROM eclipse-temurin:17-jdk-jammy AS build
+-WORKDIR /app
+-COPY . .
+-RUN chmod +x mvnw && ./mvnw -DskipTests package -DskipTests=true
++WORKDIR /workspace
++COPY .mvn .mvn
++COPY mvnw pom.xml ./
++RUN chmod +x mvnw && ./mvnw -B -ntp dependency:go-offline
++COPY src src
++RUN ./mvnw -B -ntp clean package
+ 
+ FROM eclipse-temurin:17-jre-jammy
++RUN useradd --system --uid 10001 --create-home appuser
+ WORKDIR /app
+-COPY --from=build /app/target/it-0.0.1-SNAPSHOT.jar app.jar
+-ENV JAVA_OPTS=""
+-ENTRYPOINT ["sh","-c","java $JAVA_OPTS -jar /app/app.jar"]
++COPY --from=build /workspace/target/it-0.0.1-SNAPSHOT.jar app.jar
++USER appuser
++ENV JAVA_OPTS="-XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"
++EXPOSE 8080
++ENTRYPOINT ["sh","-c","exec java $JAVA_OPTS -jar /app/app.jar"]
+diff --git a/it-main/docker-compose.yml b/it-main/docker-compose.yml
+new file mode 100644
+index 0000000..da535e9
+--- /dev/null
++++ b/it-main/docker-compose.yml
+@@ -0,0 +1,29 @@
++services:
++  postgres:
++    image: postgres:17-alpine
++    environment:
++      POSTGRES_DB: it
++      POSTGRES_USER: it
++      POSTGRES_PASSWORD: it-local-password
++    ports:
++      - "5432:5432"
++    volumes:
++      - postgres-data:/var/lib/postgresql/data
++    healthcheck:
++      test: ["CMD-SHELL", "pg_isready -U it -d it"]
++      interval: 5s
++      timeout: 5s
++      retries: 10
++
++  redis:
++    image: redis:7-alpine
++    ports:
++      - "6379:6379"
++    healthcheck:
++      test: ["CMD", "redis-cli", "ping"]
++      interval: 5s
++      timeout: 3s
++      retries: 10
++
++volumes:
++  postgres-data:
+diff --git a/it-main/pom.xml b/it-main/pom.xml
+index 4effaf3..787dd27 100644
+--- a/it-main/pom.xml
++++ b/it-main/pom.xml
+@@ -81,6 +81,18 @@
+ 			<groupId>com.fasterxml.jackson.datatype</groupId>
+ 			<artifactId>jackson-datatype-jsr310</artifactId>
+ 		</dependency>
++		<dependency>
++			<groupId>org.springframework.boot</groupId>
++			<artifactId>spring-boot-starter-actuator</artifactId>
++		</dependency>
++		<dependency>
++			<groupId>org.flywaydb</groupId>
++			<artifactId>flyway-core</artifactId>
++		</dependency>
++		<dependency>
++			<groupId>org.flywaydb</groupId>
++			<artifactId>flyway-database-postgresql</artifactId>
++		</dependency>
+ 		<dependency>
+ 			<groupId>org.springdoc</groupId>
+ 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+diff --git a/it-main/src/main/java/com/clean/it/controller/PaymentController.java b/it-main/src/main/java/com/clean/it/controller/PaymentController.java
+index 903f618..5650429 100644
+--- a/it-main/src/main/java/com/clean/it/controller/PaymentController.java
++++ b/it-main/src/main/java/com/clean/it/controller/PaymentController.java
+@@ -1,47 +1,77 @@
+ package com.clean.it.controller;
+ 
++import com.clean.it.domain.Payment;
++import com.clean.it.domain.Reservation;
+ import com.clean.it.dto.AppDtos.PaymentRequest;
+ import com.clean.it.dto.AppDtos.PaymentResponse;
++import com.clean.it.repository.ReservationRepository;
+ import com.clean.it.service.PaymentService;
++import com.clean.it.service.PaymentStore;
++import io.swagger.v3.oas.annotations.Operation;
++import io.swagger.v3.oas.annotations.tags.Tag;
++import jakarta.validation.Valid;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.security.core.Authentication;
+ import org.springframework.web.bind.annotation.*;
+-import io.swagger.v3.oas.annotations.Operation;
+-import io.swagger.v3.oas.annotations.tags.Tag;
+ 
+-import jakarta.validation.Valid;
++import java.util.List;
++
+ @RestController
+ @RequestMapping("/api/payments")
+ @Tag(name = "Payments", description = "Creación y consulta de pagos")
+ public class PaymentController {
+ 
+     private final PaymentService paymentService;
+-    private final com.clean.it.service.PaymentStore paymentStore;
++    private final PaymentStore paymentStore;
++    private final ReservationRepository reservationRepository;
+ 
+-    public PaymentController(PaymentService paymentService, com.clean.it.service.PaymentStore paymentStore) {
++    public PaymentController(PaymentService paymentService,
++                             PaymentStore paymentStore,
++                             ReservationRepository reservationRepository) {
+         this.paymentService = paymentService;
+         this.paymentStore = paymentStore;
++        this.reservationRepository = reservationRepository;
+     }
++
+     @PostMapping("/create-intent")
+     @Operation(summary = "Crear un intent de pago")
+-    public ResponseEntity<PaymentResponse> createIntent(Authentication authentication, @Valid @RequestBody PaymentRequest req) {
+-        if (authentication == null || !authentication.isAuthenticated()) return ResponseEntity.status(401).build();
+-        PaymentResponse resp = paymentService.createPaymentIntent(req);
+-        return ResponseEntity.ok(resp);
++    public ResponseEntity<PaymentResponse> createIntent(Authentication authentication,
++                                                        @Valid @RequestBody PaymentRequest req) {
++        PaymentResponse response = paymentService.createPaymentIntent(authentication.getName(), req);
++        return ResponseEntity.ok(response);
+     }
++
+     @GetMapping("/{id}")
+     @Operation(summary = "Obtener un pago por ID")
+-    public ResponseEntity<?> getPayment(@PathVariable("id") Long id) {
+-        var opt = paymentStore.findById(id);
+-        if (opt.isPresent()) return ResponseEntity.ok(opt.get());
+-        return ResponseEntity.status(404).body(java.util.Map.of("error","not found"));
++    public ResponseEntity<?> getPayment(Authentication authentication, @PathVariable("id") Long id) {
++        return paymentStore.findById(id)
++                .map(payment -> canAccess(authentication.getName(), payment)
++                        ? ResponseEntity.ok(payment)
++                        : ResponseEntity.status(403).body(java.util.Map.of("error", "forbidden")))
++                .orElseGet(() -> ResponseEntity.status(404).body(java.util.Map.of("error", "not found")));
+     }
++
+     @GetMapping
+     @Operation(summary = "Listar pagos")
+-    public ResponseEntity<java.util.List<com.clean.it.domain.Payment>> findByReservation(@RequestParam(value = "reservationId", required = false) Long reservationId) {
+-        if (reservationId != null) {
+-            return ResponseEntity.ok(paymentStore.findByReservationId(reservationId));
+-        }
+-        return ResponseEntity.ok(paymentStore.findAll());
++    public ResponseEntity<List<Payment>> findByReservation(Authentication authentication,
++                                                           @RequestParam(value = "reservationId", required = false) Long reservationId) {
++        List<Payment> source = reservationId == null
++                ? paymentStore.findAll()
++                : paymentStore.findByReservationId(reservationId);
++        List<Payment> visible = source.stream()
++                .filter(payment -> canAccess(authentication.getName(), payment))
++                .toList();
++        return ResponseEntity.ok(visible);
++    }
++
++    private boolean canAccess(String userEmail, Payment payment) {
++        return reservationRepository.findById(payment.getReservationId())
++                .map(reservation -> isParticipant(userEmail, reservation))
++                .orElse(false);
++    }
++
++    private boolean isParticipant(String userEmail, Reservation reservation) {
++        return userEmail != null && (userEmail.equalsIgnoreCase(reservation.getClientEmail())
++                || userEmail.equalsIgnoreCase(reservation.getCleanerEmail()));
+     }
+ }
+diff --git a/it-main/src/main/java/com/clean/it/controller/PaymentWebhookController.java b/it-main/src/main/java/com/clean/it/controller/PaymentWebhookController.java
+index 4947edc..3be589d 100644
+--- a/it-main/src/main/java/com/clean/it/controller/PaymentWebhookController.java
++++ b/it-main/src/main/java/com/clean/it/controller/PaymentWebhookController.java
+@@ -1,20 +1,22 @@
+ package com.clean.it.controller;
+ 
+ import com.clean.it.domain.Payment;
+-import com.clean.it.repository.PaymentRepository;
++import com.clean.it.service.PaymentStore;
+ import com.fasterxml.jackson.databind.JsonNode;
+ import com.fasterxml.jackson.databind.ObjectMapper;
++import io.swagger.v3.oas.annotations.Operation;
++import io.swagger.v3.oas.annotations.tags.Tag;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
++import org.springframework.beans.factory.annotation.Value;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.web.bind.annotation.*;
+-import io.swagger.v3.oas.annotations.Operation;
+-import io.swagger.v3.oas.annotations.tags.Tag;
++
+ import javax.crypto.Mac;
+ import javax.crypto.spec.SecretKeySpec;
+ import java.nio.charset.StandardCharsets;
++import java.security.MessageDigest;
+ import java.time.Instant;
+-import java.util.Base64;
+ import java.util.Optional;
+ 
+ @RestController
+@@ -23,39 +25,41 @@ import java.util.Optional;
+ public class PaymentWebhookController {
+     private static final Logger log = LoggerFactory.getLogger(PaymentWebhookController.class);
+     private static final ObjectMapper mapper = new ObjectMapper();
+-    private final com.clean.it.service.PaymentStore paymentStore;
+ 
+-    public PaymentWebhookController(com.clean.it.service.PaymentStore paymentStore) {
++    private final PaymentStore paymentStore;
++    private final String webhookSecret;
++
++    public PaymentWebhookController(PaymentStore paymentStore,
++                                    @Value("${stripe.webhook-secret:}") String webhookSecret) {
+         this.paymentStore = paymentStore;
++        this.webhookSecret = webhookSecret;
+     }
++
+     @PostMapping("/webhook")
+     @Operation(summary = "Procesar webhook de Stripe")
+     public ResponseEntity<?> handleWebhook(@RequestHeader(value = "Stripe-Signature", required = false) String sigHeader,
+                                            @RequestBody String payload) {
+-        String secret = System.getenv("STRIPE_WEBHOOK_SECRET");
+-        if (secret != null && !secret.isBlank()) {
+-            try {
+-                if (!verifySignature(payload, sigHeader, secret)) {
+-                    log.warn("Invalid Stripe webhook signature");
+-                    return ResponseEntity.status(400).body("Invalid signature");
+-                }
+-            } catch (Exception e) {
+-                log.error("Error verifying stripe signature", e);
++        if (webhookSecret.isBlank()) {
++            log.error("Stripe webhook rejected because STRIPE_WEBHOOK_SECRET is not configured");
++            return ResponseEntity.status(503).body("Webhook verification unavailable");
++        }
++        try {
++            if (!verifySignature(payload, sigHeader, webhookSecret)) {
++                log.warn("Invalid Stripe webhook signature");
+                 return ResponseEntity.status(400).body("Invalid signature");
+             }
+-        } else {
+-            log.warn("STRIPE_WEBHOOK_SECRET not configured - accepting webhook without verification (unsafe)");
++        } catch (Exception e) {
++            log.error("Error verifying Stripe signature", e);
++            return ResponseEntity.status(400).body("Invalid signature");
+         }
++
+         try {
+             JsonNode event = mapper.readTree(payload);
+             String type = event.path("type").asText();
+             String eventId = event.path("id").asText(null);
+-            // idempotency: if we've already processed this eventId, return OK
+-            if (eventId != null) {
+-                if (this.paymentStore.eventExists(eventId)) {
+-                    log.info("Duplicate stripe event {} ignored", eventId);
+-                    return ResponseEntity.ok(java.util.Map.of("received", true, "duplicate", true));
+-                }
++            if (eventId != null && paymentStore.eventExists(eventId)) {
++                log.info("Duplicate Stripe event {} ignored", eventId);
++                return ResponseEntity.ok(java.util.Map.of("received", true, "duplicate", true));
+             }
+             JsonNode obj = event.path("data").path("object");
+             String intentId = obj.path("id").asText(null);
+@@ -63,66 +67,56 @@ public class PaymentWebhookController {
+             if (intentId != null) {
+                 Optional<Payment> maybe = paymentStore.findByStripePaymentIntentId(intentId);
+                 if (maybe.isPresent()) {
+-                    Payment p = maybe.get();
+-                    p.setStatus(status != null ? status : p.getStatus());
+-                    // store raw JSON of the payment_intent object
+-                    try {
+-                        p.setRawJson(mapper.writeValueAsString(obj));
+-                    } catch (Exception e) {
+-                        log.warn("Could not serialize payment_intent json", e);
+-                    }
+-                    paymentStore.savePayment(p);
+-                    log.info("Updated payment {} status={} from stripe event {}", p.getId(), p.getStatus(), type);
++                    Payment payment = maybe.get();
++                    payment.setStatus(status != null ? status : payment.getStatus());
++                    payment.setRawJson(mapper.writeValueAsString(obj));
++                    paymentStore.savePayment(payment);
++                    log.info("Updated payment {} status={} from Stripe event {}", payment.getId(), payment.getStatus(), type);
+                 } else {
+-                    log.info("Received stripe event for unknown payment intent {} type={}", intentId, type);
++                    log.info("Received Stripe event for unknown payment intent {} type={}", intentId, type);
+                 }
+             }
+-            // record event processed for idempotency
+             if (eventId != null) {
+-                try {
+-                    paymentStore.saveEvent(eventId, type);
+-                } catch (Exception e) {
+-                    log.warn("Failed to persist PaymentEvent for {}", eventId, e);
+-                }
++                paymentStore.saveEvent(eventId, type);
+             }
+-            return ResponseEntity.ok().body(java.util.Map.of("received", true));
++            return ResponseEntity.ok(java.util.Map.of("received", true));
+         } catch (Exception e) {
+-            log.error("Failed to handle stripe webhook", e);
++            log.error("Failed to handle Stripe webhook", e);
+             return ResponseEntity.status(500).body("error");
+         }
+     }
++
+     private boolean verifySignature(String payload, String sigHeader, String secret) throws Exception {
+         if (sigHeader == null) return false;
+-        // header format: t=timestamp,v1=signature[,v0=...]
+-        String[] parts = sigHeader.split(",");
+-        String t = null;
+-        String v1 = null;
+-        for (String p : parts) {
+-            String[] kv = p.split("=", 2);
+-            if (kv.length != 2) continue;
+-            if (kv[0].equals("t")) t = kv[1];
+-            if (kv[0].equals("v1")) v1 = kv[1];
++        String timestampValue = null;
++        String signatureValue = null;
++        for (String part : sigHeader.split(",")) {
++            String[] pair = part.split("=", 2);
++            if (pair.length != 2) continue;
++            if (pair[0].equals("t")) timestampValue = pair[1];
++            if (pair[0].equals("v1")) signatureValue = pair[1];
+         }
+-        if (t == null || v1 == null) return false;
+-        long timestamp = Long.parseLong(t);
+-        long now = Instant.now().getEpochSecond();
+-        if (Math.abs(now - timestamp) > 300) { // 5 minutes tolerance
+-            log.warn("Stripe webhook timestamp outside tolerance: {}", timestamp);
+-            return false;
+-        }
+-        String signedPayload = t + "." + payload;
++        if (timestampValue == null || signatureValue == null) return false;
++        long timestamp = Long.parseLong(timestampValue);
++        if (Math.abs(Instant.now().getEpochSecond() - timestamp) > 300) return false;
++
+         Mac mac = Mac.getInstance("HmacSHA256");
+         mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+-        byte[] expected = mac.doFinal(signedPayload.getBytes(StandardCharsets.UTF_8));
+-        String expectedHex = bytesToHex(expected);
+-        // Stripe's signature is hex lowercase
+-        return expectedHex.equalsIgnoreCase(v1);
++        byte[] expected = mac.doFinal((timestampValue + "." + payload).getBytes(StandardCharsets.UTF_8));
++        byte[] supplied = hexToBytes(signatureValue);
++        return supplied != null && MessageDigest.isEqual(expected, supplied);
+     }
+-    private static String bytesToHex(byte[] bytes) {
+-        StringBuilder sb = new StringBuilder(bytes.length * 2);
+-        for (byte b : bytes) {
+-            sb.append(String.format("%02x", b));
++
++    private static byte[] hexToBytes(String value) {
++        if (value.length() % 2 != 0) return null;
++        byte[] bytes = new byte[value.length() / 2];
++        try {
++            for (int i = 0; i < value.length(); i += 2) {
++                bytes[i / 2] = (byte) Integer.parseInt(value.substring(i, i + 2), 16);
++            }
++            return bytes;
++        } catch (NumberFormatException ignored) {
++            return null;
+         }
+-        return sb.toString();
+     }
+ }
+diff --git a/it-main/src/main/java/com/clean/it/domain/Payment.java b/it-main/src/main/java/com/clean/it/domain/Payment.java
+index 0655a1a..b7dc85d 100644
+--- a/it-main/src/main/java/com/clean/it/domain/Payment.java
++++ b/it-main/src/main/java/com/clean/it/domain/Payment.java
+@@ -1,5 +1,6 @@
+ package com.clean.it.domain;
+ 
++import com.fasterxml.jackson.annotation.JsonIgnore;
+ import jakarta.persistence.*;
+ import java.time.Instant;
+ 
+@@ -17,9 +18,11 @@ public class Payment {
+ 
+     private String stripePaymentIntentId;
+ 
++    @JsonIgnore
+     private String clientSecret;
+     @Lob
+     @Column(columnDefinition = "text")
++    @JsonIgnore
+     private String rawJson;
+ 
+     private String status;
+diff --git a/it-main/src/main/java/com/clean/it/dto/AppDtos.java b/it-main/src/main/java/com/clean/it/dto/AppDtos.java
+index 371e86c..e6cd568 100644
+--- a/it-main/src/main/java/com/clean/it/dto/AppDtos.java
++++ b/it-main/src/main/java/com/clean/it/dto/AppDtos.java
+@@ -21,11 +21,11 @@ public final class AppDtos {
+     public static class ReservationRequest {
+         @NotNull
+         private Long jobId;
+-        @NotBlank
++        @NotBlank @Email
+         private String cleanerEmail;
+-        @NotNull
++        @NotNull @Future
+         private Instant startAt;
+-        @NotNull
++        @NotNull @Min(30) @Max(1440)
+         private Integer durationMinutes;
+         public Long getJobId() { return jobId; }
+         public void setJobId(Long jobId) { this.jobId = jobId; }
+@@ -62,7 +62,7 @@ public final class AppDtos {
+     public static class PaymentRequest {
+         @NotNull
+         private Long reservationId;
+-        @NotNull
++        // Kept temporarily for backwards compatibility. The server derives the amount from the job.
+         private Integer amountCents;
+         public Long getReservationId() { return reservationId; }
+         public void setReservationId(Long reservationId) { this.reservationId = reservationId; }
+diff --git a/it-main/src/main/java/com/clean/it/repository/JobRepository.java b/it-main/src/main/java/com/clean/it/repository/JobRepository.java
+index a828f01..ef1e9e7 100644
+--- a/it-main/src/main/java/com/clean/it/repository/JobRepository.java
++++ b/it-main/src/main/java/com/clean/it/repository/JobRepository.java
+@@ -2,15 +2,22 @@ package com.clean.it.repository;
+ 
+ import com.clean.it.domain.Job;
+ import com.clean.it.domain.JobStatus;
++import jakarta.persistence.LockModeType;
+ import org.springframework.data.jpa.repository.JpaRepository;
++import org.springframework.data.jpa.repository.Lock;
+ import org.springframework.data.jpa.repository.Query;
+ import org.springframework.data.repository.query.Param;
+ 
+ import java.util.List;
++import java.util.Optional;
+ 
+ public interface JobRepository extends JpaRepository<Job, Long> {
+-
+     List<Job> findByStatus(JobStatus status);
++
++    @Lock(LockModeType.PESSIMISTIC_WRITE)
++    @Query("select j from Job j where j.id = :id")
++    Optional<Job> findByIdForUpdate(@Param("id") Long id);
++
+     @Query("select count(j) > 0 from Job j where j.cleanerEmail = :cleanerEmail and j.status in :active")
+     boolean existsByCleanerEmailAndStatusIn(@Param("cleanerEmail") String cleanerEmail, @Param("active") List<JobStatus> active);
+ }
+diff --git a/it-main/src/main/java/com/clean/it/repository/ReservationRepository.java b/it-main/src/main/java/com/clean/it/repository/ReservationRepository.java
+index b34fc1f..41855ec 100644
+--- a/it-main/src/main/java/com/clean/it/repository/ReservationRepository.java
++++ b/it-main/src/main/java/com/clean/it/repository/ReservationRepository.java
+@@ -1,11 +1,15 @@
+ package com.clean.it.repository;
+ 
+ import com.clean.it.domain.Reservation;
++import jakarta.persistence.LockModeType;
+ import org.springframework.data.jpa.repository.JpaRepository;
+-import java.time.Instant;
++import org.springframework.data.jpa.repository.Lock;
++
+ import java.util.List;
+ 
+ public interface ReservationRepository extends JpaRepository<Reservation, Long> {
+-    List<Reservation> findByCleanerEmailAndStartAtBetween(String cleanerEmail, Instant from, Instant to);
++    @Lock(LockModeType.PESSIMISTIC_WRITE)
++    List<Reservation> findByCleanerEmail(String cleanerEmail);
++
+     List<Reservation> findByClientEmailOrCleanerEmail(String clientEmail, String cleanerEmail);
+ }
+diff --git a/it-main/src/main/java/com/clean/it/security/SecurityConfig.java b/it-main/src/main/java/com/clean/it/security/SecurityConfig.java
+index 6d74a47..93e8da1 100644
+--- a/it-main/src/main/java/com/clean/it/security/SecurityConfig.java
++++ b/it-main/src/main/java/com/clean/it/security/SecurityConfig.java
+@@ -1,105 +1,104 @@
+ package com.clean.it.security;
+-import org.springframework.beans.factory.annotation.Value;
+-import org.springframework.context.annotation.Bean;
++
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+-import org.springframework.security.core.userdetails.User;
+-import org.springframework.security.core.userdetails.UserDetails;
+-import org.springframework.security.core.userdetails.UserDetailsService;
+-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
++import org.springframework.beans.factory.annotation.Value;
+ import org.springframework.context.annotation.Bean;
+ import org.springframework.context.annotation.Configuration;
++import org.springframework.http.HttpMethod;
++import org.springframework.security.config.Customizer;
+ import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+-import org.springframework.http.HttpMethod;
++import org.springframework.security.config.http.SessionCreationPolicy;
++import org.springframework.security.core.authority.SimpleGrantedAuthority;
++import org.springframework.security.core.userdetails.User;
++import org.springframework.security.core.userdetails.UserDetails;
++import org.springframework.security.core.userdetails.UserDetailsService;
+ import org.springframework.security.oauth2.jwt.JwtDecoder;
+ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+ import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+ import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
++import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+ import org.springframework.security.web.SecurityFilterChain;
+-import org.springframework.security.config.Customizer;
++
+ import javax.crypto.spec.SecretKeySpec;
+ import java.nio.charset.StandardCharsets;
+-import java.security.MessageDigest;
++import java.util.ArrayList;
+ 
+ @Configuration
+ @EnableMethodSecurity
+ public class SecurityConfig {
+     private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
+-    @Value("${security.jwt.secret:secret-key-should-be-changed-in-prod}")
++
++    @Value("${security.jwt.secret}")
+     private String jwtSecret;
+ 
+     @Value("${ALLOW_BASIC_AUTH:false}")
+     private boolean allowBasicAuth;
+-    @Value("${BASIC_AUTH_USERNAME:dev}")
++
++    @Value("${BASIC_AUTH_USERNAME:}")
+     private String basicAuthUser;
+ 
+-    @Value("${BASIC_AUTH_PASSWORD:dev}")
++    @Value("${BASIC_AUTH_PASSWORD:}")
+     private String basicAuthPassword;
++
+     @Bean
+-    public SecurityFilterChain securityFilterChain(HttpSecurity http) {
+-        log.info("SecurityConfig starting: ALLOW_BASIC_AUTH={} BASIC_AUTH_USERNAME={}", allowBasicAuth, basicAuthUser);
++    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
++        log.info("SecurityConfig starting: ALLOW_BASIC_AUTH={}", allowBasicAuth);
+         http
+                 .csrf(csrf -> csrf.disable())
++                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                 .authorizeHttpRequests(auth -> auth
+-                        .requestMatchers("/", "/index.html", "/api/info", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health", "/postman_collection.json").permitAll()
++                        .requestMatchers("/", "/index.html", "/ui.css", "/api/info", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health", "/postman_collection.json").permitAll()
++                        .requestMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
+                         .requestMatchers(HttpMethod.GET, "/api/cleaners", "/api/cleaners/**", "/api/reviews/**", "/api/jobs/open").permitAll()
+                         .requestMatchers("/ws/**", "/sockjs/**", "/topic/**").permitAll()
+                         .anyRequest().authenticated()
+                 )
+                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
+-        // Optionally enable HTTP Basic for quick dev testing (controlled via ALLOW_BASIC_AUTH env var)
+         if (allowBasicAuth) {
+-            // Spring Security 6+: httpBasic expects a Customizer argument
+             http.httpBasic(Customizer.withDefaults());
+         }
+         return http.build();
+     }
++
+     @Bean
+     public JwtDecoder jwtDecoder() {
+-        // Using symmetric key for simplicity. In production use RSA or managed keys.
+-        // Nimbus requires at least a 256-bit (32 byte) secret for HS256. Allow short dev secrets by
+-        // deriving a 256-bit key via SHA-256 when the provided secret is too short.
+         byte[] keyBytes = jwtSecret.getBytes(StandardCharsets.UTF_8);
+         if (keyBytes.length < 32) {
+-            try {
+-                MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+-                keyBytes = sha256.digest(keyBytes);
+-            } catch (Exception e) {
+-                // fallback to original bytes if digest unexpectedly fails
+-            }
++            throw new IllegalStateException("JWT_SECRET must contain at least 32 UTF-8 bytes");
+         }
+-        SecretKeySpec key = new SecretKeySpec(keyBytes, 0, keyBytes.length, "HmacSHA256");
++        SecretKeySpec key = new SecretKeySpec(keyBytes, "HmacSHA256");
+         return NimbusJwtDecoder.withSecretKey(key).build();
+     }
++
+     private JwtAuthenticationConverter jwtAuthenticationConverter() {
+         JwtGrantedAuthoritiesConverter authoritiesConverter = new JwtGrantedAuthoritiesConverter();
+-        // don't expect 'scope' claim, map from custom 'role' claim instead
+-        authoritiesConverter.setAuthorityPrefix("ROLE_");
+         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+-            // first, map the 'role' claim (string) to a GrantedAuthority
+-            var authorities = authoritiesConverter.convert(jwt);
++            var authorities = new ArrayList<>(authoritiesConverter.convert(jwt));
+             Object role = jwt.getClaim("role");
+-            if (role instanceof String) {
+-                // Spring expects ROLE_* prefix; JwtGrantedAuthoritiesConverter already handled prefix, but we add explicitly
+-                authorities.add(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + ((String) role).toUpperCase()));
++            if (role instanceof String roleName && !roleName.isBlank()) {
++                authorities.add(new SimpleGrantedAuthority("ROLE_" + roleName.toUpperCase()));
+             }
+             return authorities;
+         });
+         return converter;
+     }
++
+     @Bean
+     public UserDetailsService userDetailsService() {
+-        // Provide an in-memory user only when basic auth is enabled. Password is stored {noop} for dev convenience.
+         if (!allowBasicAuth) {
+             return new InMemoryUserDetailsManager();
+         }
++        if (basicAuthUser.isBlank() || basicAuthPassword.isBlank()) {
++            throw new IllegalStateException("BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD are required when Basic Auth is enabled");
++        }
+         UserDetails user = User.withUsername(basicAuthUser)
+                 .password("{noop}" + basicAuthPassword)
+                 .roles("CLIENT", "CLEANER")
+                 .build();
+-        log.info("Registering in-memory basic auth user='{}' (roles CLIENT,CLEANER)", basicAuthUser);
++        log.info("Registering in-memory Basic Auth user='{}'", basicAuthUser);
+         return new InMemoryUserDetailsManager(user);
+     }
+ }
+diff --git a/it-main/src/main/java/com/clean/it/service/PaymentService.java b/it-main/src/main/java/com/clean/it/service/PaymentService.java
+index 7001e49..86dd476 100644
+--- a/it-main/src/main/java/com/clean/it/service/PaymentService.java
++++ b/it-main/src/main/java/com/clean/it/service/PaymentService.java
+@@ -4,5 +4,5 @@ import com.clean.it.dto.AppDtos.PaymentRequest;
+ import com.clean.it.dto.AppDtos.PaymentResponse;
+ 
+ public interface PaymentService {
+-    PaymentResponse createPaymentIntent(PaymentRequest req);
++    PaymentResponse createPaymentIntent(String userEmail, PaymentRequest req);
+ }
+diff --git a/it-main/src/main/java/com/clean/it/service/impl/JobServiceImpl.java b/it-main/src/main/java/com/clean/it/service/impl/JobServiceImpl.java
+index 1a254de..8cece08 100644
+--- a/it-main/src/main/java/com/clean/it/service/impl/JobServiceImpl.java
++++ b/it-main/src/main/java/com/clean/it/service/impl/JobServiceImpl.java
+@@ -67,7 +67,7 @@ public class JobServiceImpl implements JobService {
+             if (token == null) {
+                 throw new IllegalStateException("Could not acquire lock, try again");
+             }
+-            Job job = jobRepository.findById(jobId).orElseThrow(() -> new IllegalArgumentException("Job not found"));
++            Job job = jobRepository.findByIdForUpdate(jobId).orElseThrow(() -> new IllegalArgumentException("Job not found"));
+             if (job.getStatus() != JobStatus.OPEN) {
+                 throw new IllegalStateException("Job is not open");
+             }
+diff --git a/it-main/src/main/java/com/clean/it/service/impl/PaymentServiceImpl.java b/it-main/src/main/java/com/clean/it/service/impl/PaymentServiceImpl.java
+index 6d0c7af..e91a0e8 100644
+--- a/it-main/src/main/java/com/clean/it/service/impl/PaymentServiceImpl.java
++++ b/it-main/src/main/java/com/clean/it/service/impl/PaymentServiceImpl.java
+@@ -1,15 +1,22 @@
+ package com.clean.it.service.impl;
+ 
++import com.clean.it.domain.Job;
++import com.clean.it.domain.Payment;
++import com.clean.it.domain.Reservation;
+ import com.clean.it.dto.AppDtos.PaymentRequest;
+ import com.clean.it.dto.AppDtos.PaymentResponse;
++import com.clean.it.repository.JobRepository;
++import com.clean.it.repository.PaymentRepository;
++import com.clean.it.repository.ReservationRepository;
+ import com.clean.it.service.PaymentService;
+ import com.fasterxml.jackson.databind.JsonNode;
+ import com.fasterxml.jackson.databind.ObjectMapper;
+-import com.clean.it.domain.Payment;
+-import com.clean.it.repository.PaymentRepository;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
++import org.springframework.beans.factory.annotation.Value;
++import org.springframework.security.access.AccessDeniedException;
+ import org.springframework.stereotype.Service;
++
+ import java.io.IOException;
+ import java.net.URI;
+ import java.net.http.HttpClient;
+@@ -25,19 +32,40 @@ public class PaymentServiceImpl implements PaymentService {
+     private static final ObjectMapper mapper = new ObjectMapper();
+ 
+     private final PaymentRepository paymentRepository;
+-    public PaymentServiceImpl(PaymentRepository paymentRepository) {
++    private final ReservationRepository reservationRepository;
++    private final JobRepository jobRepository;
++    private final String stripeSecretKey;
++
++    public PaymentServiceImpl(PaymentRepository paymentRepository,
++                              ReservationRepository reservationRepository,
++                              JobRepository jobRepository,
++                              @Value("${stripe.secret-key:}") String stripeSecretKey) {
+         this.paymentRepository = paymentRepository;
++        this.reservationRepository = reservationRepository;
++        this.jobRepository = jobRepository;
++        this.stripeSecretKey = stripeSecretKey;
+     }
++
+     @Override
+-    public PaymentResponse createPaymentIntent(PaymentRequest req) {
+-        String apiKey = System.getenv("STRIPE_SECRET_KEY");
+-        if (apiKey == null || apiKey.isBlank()) {
+-            log.warn("STRIPE_SECRET_KEY not configured, cannot create real PaymentIntent");
+-            throw new IllegalStateException("Stripe not configured: set STRIPE_SECRET_KEY environment variable to enable payments");
++    public PaymentResponse createPaymentIntent(String userEmail, PaymentRequest req) {
++        Reservation reservation = reservationRepository.findById(req.getReservationId())
++                .orElseThrow(() -> new IllegalArgumentException("Reservation not found"));
++        if (reservation.getClientEmail() == null || !reservation.getClientEmail().equalsIgnoreCase(userEmail)) {
++            throw new AccessDeniedException("Only the reservation client can create its payment");
++        }
++        Job job = jobRepository.findById(reservation.getJobId())
++                .orElseThrow(() -> new IllegalStateException("Job linked to reservation not found"));
++        long amountCents = job.getPriceCents() == null ? 0 : job.getPriceCents();
++        if (amountCents <= 0) {
++            throw new IllegalStateException("Reservation has no valid payable amount");
++        }
++        if (stripeSecretKey.isBlank()) {
++            throw new IllegalStateException("Stripe is not configured");
+         }
++
+         try {
+             String form = new StringBuilder()
+-                    .append("amount=").append(URLEncoder.encode(String.valueOf(req.getAmountCents()), StandardCharsets.UTF_8))
++                    .append("amount=").append(URLEncoder.encode(String.valueOf(amountCents), StandardCharsets.UTF_8))
+                     .append("&currency=").append(URLEncoder.encode("eur", StandardCharsets.UTF_8))
+                     .append("&automatic_payment_methods[enabled]=true")
+                     .append("&metadata[reservationId]=")
+@@ -45,39 +73,33 @@ public class PaymentServiceImpl implements PaymentService {
+                     .toString();
+             HttpRequest request = HttpRequest.newBuilder()
+                     .uri(URI.create("https://api.stripe.com/v1/payment_intents"))
+-                    .header("Authorization", "Bearer " + apiKey)
++                    .header("Authorization", "Bearer " + stripeSecretKey)
+                     .header("Content-Type", "application/x-www-form-urlencoded")
+                     .POST(HttpRequest.BodyPublishers.ofString(form))
+                     .build();
+-            HttpClient client = HttpClient.newHttpClient();
+-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+-            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+-                JsonNode node = mapper.readTree(response.body());
+-                String clientSecret = node.path("client_secret").asText(null);
+-                String stripeIntentId = node.path("id").asText(null);
+-                String status = node.path("status").asText(null);
+-                // persist payment record
+-                try {
+-                    Payment p = new Payment();
+-                    p.setReservationId(req.getReservationId());
+-                    p.setAmountCents(req.getAmountCents().longValue());
+-                    p.setStripePaymentIntentId(stripeIntentId);
+-                    p.setClientSecret(clientSecret);
+-                    p.setStatus(status != null ? status : "created");
+-                    paymentRepository.save(p);
+-                } catch (Exception e) {
+-                    log.error("Failed to persist payment record", e);
+-                }
+-                PaymentResponse resp = new PaymentResponse();
+-                resp.setClientSecret(clientSecret);
+-                return resp;
+-            } else {
++            HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
++            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                 log.error("Stripe API returned status {}: {}", response.statusCode(), response.body());
+-                throw new RuntimeException("Stripe API error: status=" + response.statusCode());
++                throw new IllegalStateException("Stripe API error: status=" + response.statusCode());
+             }
+-        } catch (IOException | InterruptedException e) {
+-            log.error("Error calling Stripe API", e);
+-            throw new RuntimeException("Failed to create payment intent: " + e.getMessage(), e);
++
++            JsonNode node = mapper.readTree(response.body());
++            Payment payment = new Payment();
++            payment.setReservationId(req.getReservationId());
++            payment.setAmountCents(amountCents);
++            payment.setStripePaymentIntentId(node.path("id").asText(null));
++            payment.setClientSecret(node.path("client_secret").asText(null));
++            payment.setStatus(node.path("status").asText("created"));
++            paymentRepository.save(payment);
++
++            PaymentResponse result = new PaymentResponse();
++            result.setClientSecret(payment.getClientSecret());
++            return result;
++        } catch (InterruptedException e) {
++            Thread.currentThread().interrupt();
++            throw new IllegalStateException("Payment request interrupted", e);
++        } catch (IOException e) {
++            throw new IllegalStateException("Failed to create payment intent", e);
+         }
+     }
+ }
+diff --git a/it-main/src/main/java/com/clean/it/service/impl/ReservationServiceImpl.java b/it-main/src/main/java/com/clean/it/service/impl/ReservationServiceImpl.java
+index d3c75b4..bb948f5 100644
+--- a/it-main/src/main/java/com/clean/it/service/impl/ReservationServiceImpl.java
++++ b/it-main/src/main/java/com/clean/it/service/impl/ReservationServiceImpl.java
+@@ -22,11 +22,16 @@ public class ReservationServiceImpl implements ReservationService {
+     @Override
+     @Transactional
+     public ReservationResponse reserve(String clientEmail, ReservationRequest req) {
+-        // simple availability check: ensure cleaner has no reservation overlapping the requested slot
+         Instant start = req.getStartAt();
+         Instant end = start.plus(Duration.ofMinutes(req.getDurationMinutes()));
+-        List<Reservation> overlapping = reservationRepository.findByCleanerEmailAndStartAtBetween(req.getCleanerEmail(), start.minus(Duration.ofMinutes(1)), end.minus(Duration.ofMinutes(1)));
+-        if (!overlapping.isEmpty()) {
++        boolean overlaps = reservationRepository.findByCleanerEmail(req.getCleanerEmail()).stream()
++                .filter(existing -> !"CANCELLED".equalsIgnoreCase(existing.getStatus()))
++                .anyMatch(existing -> {
++                    Instant existingEnd = existing.getStartAt()
++                            .plus(Duration.ofMinutes(existing.getDurationMinutes()));
++                    return start.isBefore(existingEnd) && existing.getStartAt().isBefore(end);
++                });
++        if (overlaps) {
+             throw new IllegalStateException("Cleaner not available at requested time");
+         }
+         Reservation r = new Reservation();
+diff --git a/it-main/src/main/resources/application-local.yaml b/it-main/src/main/resources/application-local.yaml
+new file mode 100644
+index 0000000..e474bbd
+--- /dev/null
++++ b/it-main/src/main/resources/application-local.yaml
+@@ -0,0 +1,19 @@
++spring:
++  datasource:
++    url: jdbc:h2:mem:itdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
++    username: sa
++    password:
++  jpa:
++    hibernate:
++      ddl-auto: create-drop
++  flyway:
++    enabled: false
++  data:
++    redis:
++      host: ${SPRING_REDIS_HOST:localhost}
++      port: ${SPRING_REDIS_PORT:6379}
++      password: ${SPRING_REDIS_PASSWORD:}
++
++security:
++  jwt:
++    secret: ${JWT_SECRET:local-development-secret-change-me-32}
+diff --git a/it-main/src/main/resources/application-prod.yaml b/it-main/src/main/resources/application-prod.yaml
+new file mode 100644
+index 0000000..b9121a4
+--- /dev/null
++++ b/it-main/src/main/resources/application-prod.yaml
+@@ -0,0 +1,23 @@
++spring:
++  datasource:
++    url: ${SPRING_DATASOURCE_URL}
++    username: ${SPRING_DATASOURCE_USERNAME}
++    password: ${SPRING_DATASOURCE_PASSWORD}
++  data:
++    redis:
++      host: ${SPRING_REDIS_HOST}
++      port: ${SPRING_REDIS_PORT:6379}
++      password: ${SPRING_REDIS_PASSWORD:}
++  jpa:
++    hibernate:
++      ddl-auto: validate
++  flyway:
++    enabled: true
++    baseline-on-migrate: true
++
++security:
++  jwt:
++    secret: ${JWT_SECRET}
++stripe:
++  secret-key: ${STRIPE_SECRET_KEY}
++  webhook-secret: ${STRIPE_WEBHOOK_SECRET}
+diff --git a/it-main/src/main/resources/application-test.yaml b/it-main/src/main/resources/application-test.yaml
+new file mode 100644
+index 0000000..fda745a
+--- /dev/null
++++ b/it-main/src/main/resources/application-test.yaml
+@@ -0,0 +1,15 @@
++spring:
++  datasource:
++    url: jdbc:h2:mem:it-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
++    username: sa
++    password:
++  jpa:
++    hibernate:
++      ddl-auto: create-drop
++  flyway:
++    enabled: false
++  cache:
++    type: none
++security:
++  jwt:
++    secret: test-secret-at-least-thirty-two-bytes-long
+diff --git a/it-main/src/main/resources/application.yaml b/it-main/src/main/resources/application.yaml
+index a610b8e..beff63b 100644
+--- a/it-main/src/main/resources/application.yaml
++++ b/it-main/src/main/resources/application.yaml
+@@ -1,24 +1,39 @@
+ server:
+-  # Use PORT provided by Railway (or default 8080 locally)
+   port: ${PORT:8080}
++  shutdown: graceful
++  error:
++    include-message: never
++
+ spring:
+   application:
+     name: it
+-  redis:
+-    # Allow overriding Redis connection via env vars on Railway
+-    host: ${SPRING_REDIS_HOST:localhost}
+-    port: ${SPRING_REDIS_PORT:6379}
+-    password: ${SPRING_REDIS_PASSWORD:}
+-  # Jackson serialization settings are configured programmatically in RedisConfig
+-  datasource:
+-    # Allow using an external JDBC url (Postgres on Railway) or fall back to H2 in-memory for local dev
+-    url: ${SPRING_DATASOURCE_URL:jdbc:h2:mem:itdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
+-    username: ${SPRING_DATASOURCE_USERNAME:sa}
+-    password: ${SPRING_DATASOURCE_PASSWORD:}
++  profiles:
++    default: local
++  lifecycle:
++    timeout-per-shutdown-phase: 20s
+   jpa:
+-    hibernate:
+-      ddl-auto: update
+-    show-sql: false
++    open-in-view: false
++    properties:
++      hibernate:
++        jdbc:
++          time_zone: UTC
++  jackson:
++    default-property-inclusion: non_null
++
++management:
++  endpoints:
++    web:
++      exposure:
++        include: health,info,metrics
++  endpoint:
++    health:
++      probes:
++        enabled: true
++
+ security:
+   jwt:
+-    secret: ${JWT_SECRET:very-secret-change-me}
++    secret: ${JWT_SECRET:}
++
++stripe:
++  secret-key: ${STRIPE_SECRET_KEY:}
++  webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+diff --git a/it-main/src/main/resources/db/migration/V1__initial_schema.sql b/it-main/src/main/resources/db/migration/V1__initial_schema.sql
+new file mode 100644
+index 0000000..bcd6de6
+--- /dev/null
++++ b/it-main/src/main/resources/db/migration/V1__initial_schema.sql
+@@ -0,0 +1,73 @@
++CREATE TABLE cleaners (
++    id BIGSERIAL PRIMARY KEY,
++    email VARCHAR(255) NOT NULL UNIQUE,
++    name VARCHAR(255),
++    rating DOUBLE PRECISION,
++    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
++);
++
++CREATE TABLE jobs (
++    id BIGSERIAL PRIMARY KEY,
++    client_email VARCHAR(255) NOT NULL,
++    title VARCHAR(120),
++    cleaner_email VARCHAR(255),
++    status VARCHAR(32) NOT NULL,
++    description TEXT,
++    price_cents BIGINT,
++    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
++    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
++    CONSTRAINT chk_jobs_price_non_negative CHECK (price_cents IS NULL OR price_cents >= 0)
++);
++
++CREATE TABLE reservations (
++    id BIGSERIAL PRIMARY KEY,
++    job_id BIGINT NOT NULL,
++    client_email VARCHAR(255) NOT NULL,
++    cleaner_email VARCHAR(255) NOT NULL,
++    start_at TIMESTAMPTZ NOT NULL,
++    duration_minutes INTEGER NOT NULL,
++    status VARCHAR(32) NOT NULL,
++    payment_intent_id VARCHAR(255),
++    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
++    CONSTRAINT fk_reservations_job FOREIGN KEY (job_id) REFERENCES jobs(id),
++    CONSTRAINT chk_reservation_duration CHECK (duration_minutes BETWEEN 30 AND 1440)
++);
++
++CREATE TABLE payments (
++    id BIGSERIAL PRIMARY KEY,
++    reservation_id BIGINT NOT NULL,
++    amount_cents BIGINT NOT NULL,
++    stripe_payment_intent_id VARCHAR(255),
++    client_secret VARCHAR(255),
++    raw_json TEXT,
++    status VARCHAR(64),
++    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
++    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
++    CONSTRAINT fk_payments_reservation FOREIGN KEY (reservation_id) REFERENCES reservations(id),
++    CONSTRAINT chk_payment_amount_positive CHECK (amount_cents > 0)
++);
++
++CREATE TABLE payment_events (
++    id BIGSERIAL PRIMARY KEY,
++    event_id VARCHAR(255) NOT NULL UNIQUE,
++    type VARCHAR(255),
++    processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
++);
++
++CREATE TABLE reviews (
++    id BIGSERIAL PRIMARY KEY,
++    cleaner_email VARCHAR(255) NOT NULL,
++    client_email VARCHAR(255) NOT NULL,
++    rating INTEGER NOT NULL,
++    comment VARCHAR(2000),
++    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
++    CONSTRAINT chk_review_rating CHECK (rating BETWEEN 1 AND 5)
++);
++
++CREATE INDEX idx_jobs_status ON jobs(status);
++CREATE INDEX idx_jobs_cleaner_status ON jobs(cleaner_email, status);
++CREATE INDEX idx_reservations_cleaner_start ON reservations(cleaner_email, start_at);
++CREATE INDEX idx_reservations_client ON reservations(client_email);
++CREATE INDEX idx_payments_reservation ON payments(reservation_id);
++CREATE UNIQUE INDEX idx_payments_stripe_intent ON payments(stripe_payment_intent_id) WHERE stripe_payment_intent_id IS NOT NULL;
++CREATE INDEX idx_reviews_cleaner ON reviews(cleaner_email);
+diff --git a/it-main/src/main/resources/static/ui.css b/it-main/src/main/resources/static/ui.css
+new file mode 100644
+index 0000000..205280b
+--- /dev/null
++++ b/it-main/src/main/resources/static/ui.css
+@@ -0,0 +1,41 @@
++/* Visual/accessibility layer kept separate from the demo SPA for easy removal. */
++:root { color-scheme: dark; }
++html { scroll-behavior: smooth; }
++body { font-size: 16px; letter-spacing: .005em; }
++body::before {
++  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: -1;
++  background: linear-gradient(120deg, rgba(56,189,248,.06), transparent 35%, rgba(167,139,250,.07));
++}
++button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
++button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
++  outline: 3px solid #f8fafc; outline-offset: 3px;
++}
++button:disabled { cursor: wait; opacity: .62; transform: none !important; }
++.topbar { border-color: rgba(148,163,184,.25); }
++.brand-badge { box-shadow: 0 10px 32px rgba(96,165,250,.28); }
++.nav-btn.active { box-shadow: inset 3px 0 0 #60a5fa; }
++.card, .cleaner-card, .job-card, .reservation-card, .payment-card, .review-card, .endpoint-card {
++  transition: transform .18s ease, border-color .18s ease, background-color .18s ease;
++}
++.cleaner-card:hover, .job-card:hover, .reservation-card:hover, .payment-card:hover, .review-card:hover {
++  transform: translateY(-2px); border-color: rgba(96,165,250,.38);
++}
++.input:focus, .select:focus, .textarea:focus { border-color: #60a5fa; box-shadow: 0 0 0 4px rgba(96,165,250,.12); }
++.table { display: block; overflow-x: auto; }
++.message { position: sticky; top: 100px; z-index: 10; backdrop-filter: blur(14px); }
++@media (prefers-reduced-motion: reduce) {
++  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
++}
++@media (max-width: 700px) {
++  .app { padding: 10px; }
++  .topbar { position: static; border-radius: 20px; align-items: flex-start; }
++  .brand p { display: none; }
++  .grid { display: block; }
++  .sidebar { position: fixed; inset: auto 8px 8px; z-index: 30; padding: 8px; background: rgba(2,6,23,.94); }
++  .sidebar .section-title, .sidebar .divider, .sidebar .card { display: none; }
++  .nav-list { display: flex; overflow-x: auto; gap: 6px; scrollbar-width: none; }
++  .nav-btn { width: auto; min-width: max-content; text-align: center; padding: 10px 12px; }
++  .nav-btn.active { box-shadow: inset 0 -3px 0 #60a5fa; }
++  .screen { margin-bottom: 84px; padding: 16px; min-height: auto; }
++  .headline { font-size: clamp(2rem, 11vw, 3rem); }
++}
+diff --git a/it-main/src/test/java/com/clean/it/controller/PaymentWebhookControllerTest.java b/it-main/src/test/java/com/clean/it/controller/PaymentWebhookControllerTest.java
+index ab13333..9b87a89 100644
+--- a/it-main/src/test/java/com/clean/it/controller/PaymentWebhookControllerTest.java
++++ b/it-main/src/test/java/com/clean/it/controller/PaymentWebhookControllerTest.java
+@@ -3,6 +3,10 @@ package com.clean.it.controller;
+ import com.fasterxml.jackson.databind.ObjectMapper;
+ import org.junit.jupiter.api.Test;
+ 
++import javax.crypto.Mac;
++import javax.crypto.spec.SecretKeySpec;
++import java.nio.charset.StandardCharsets;
++import java.time.Instant;
+ import java.util.*;
+ 
+ import static org.assertj.core.api.Assertions.assertThat;
+@@ -10,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
+ public class PaymentWebhookControllerTest {
+ 
+     private final ObjectMapper mapper = new ObjectMapper();
++
+     static class InMemoryStore implements com.clean.it.service.PaymentStore {
+         Map<Long, com.clean.it.domain.Payment> payments = new HashMap<>();
+         Map<String, com.clean.it.domain.PaymentEvent> events = new HashMap<>();
+@@ -25,41 +30,37 @@ public class PaymentWebhookControllerTest {
+             payments.put(p.getId(), p);
+             return p;
+         }
+-
+         @Override
+         public Optional<com.clean.it.domain.Payment> findById(Long id) { return Optional.ofNullable(payments.get(id)); }
+         @Override
+         public List<com.clean.it.domain.Payment> findByReservationId(Long reservationId) {
+-            List<com.clean.it.domain.Payment> list = new ArrayList<>();
+-            for (com.clean.it.domain.Payment p : payments.values()) if (Objects.equals(p.getReservationId(), reservationId)) list.add(p);
+-            return list;
++            return payments.values().stream().filter(p -> Objects.equals(p.getReservationId(), reservationId)).toList();
+         }
+-
+         @Override
+         public List<com.clean.it.domain.Payment> findAll() { return new ArrayList<>(payments.values()); }
+         @Override
+         public boolean eventExists(String eventId) { return events.containsKey(eventId); }
+-
+         @Override
+         public void saveEvent(String eventId, String type) {
+-            com.clean.it.domain.PaymentEvent e = new com.clean.it.domain.PaymentEvent();
+-            e.setEventId(eventId);
+-            e.setType(type);
+-            events.put(eventId, e);
++            com.clean.it.domain.PaymentEvent event = new com.clean.it.domain.PaymentEvent();
++            event.setEventId(eventId);
++            event.setType(type);
++            events.put(eventId, event);
+         }
+     }
++
+     @Test
+     public void webhookProcessesEventAndIsIdempotent() throws Exception {
++        String secret = "whsec-test-secret";
+         InMemoryStore store = new InMemoryStore();
+-        com.clean.it.controller.PaymentWebhookController controller = new com.clean.it.controller.PaymentWebhookController(store);
+-        // create a payment record as if created earlier
+-        com.clean.it.domain.Payment p = new com.clean.it.domain.Payment();
+-        p.setReservationId(42L);
+-        p.setAmountCents(5000L);
+-        p.setStripePaymentIntentId("pi_test_123");
+-        p.setStatus("requires_payment_method");
+-        store.savePayment(p);
+-        // build a stripe-like event payload with data.object.id matching the payment
++        PaymentWebhookController controller = new PaymentWebhookController(store, secret);
++        com.clean.it.domain.Payment payment = new com.clean.it.domain.Payment();
++        payment.setReservationId(42L);
++        payment.setAmountCents(5000L);
++        payment.setStripePaymentIntentId("pi_test_123");
++        payment.setStatus("requires_payment_method");
++        store.savePayment(payment);
++
+         String payload = mapper.writeValueAsString(
+                 mapper.createObjectNode()
+                         .put("id", "evt_test_1")
+@@ -68,17 +69,23 @@ public class PaymentWebhookControllerTest {
+                                 mapper.createObjectNode().put("id", "pi_test_123").put("status", "succeeded")
+                         ))
+         );
+-        // call webhook first time
+-        controller.handleWebhook(null, payload);
++        long timestamp = Instant.now().getEpochSecond();
++        String signature = "t=" + timestamp + ",v1=" + sign(timestamp + "." + payload, secret);
+ 
+-        // verify payment updated and event recorded
+-        com.clean.it.domain.Payment saved = store.findByStripePaymentIntentId("pi_test_123").orElseThrow();
+-        assertThat(saved.getStatus()).isEqualTo("succeeded");
++        assertThat(controller.handleWebhook(signature, payload).getStatusCode().is2xxSuccessful()).isTrue();
++        assertThat(store.findByStripePaymentIntentId("pi_test_123").orElseThrow().getStatus()).isEqualTo("succeeded");
+         assertThat(store.eventExists("evt_test_1")).isTrue();
++        assertThat(controller.handleWebhook(signature, payload).getStatusCode().is2xxSuccessful()).isTrue();
++        assertThat(store.events).hasSize(1);
++    }
+ 
+-        // call webhook again (duplicate) - should be idempotent
+-        controller.handleWebhook(null, payload);
+-        // still only one event record
+-        assertThat(store.eventExists("evt_test_1")).isTrue();
++    private static String sign(String value, String secret) throws Exception {
++        Mac mac = Mac.getInstance("HmacSHA256");
++        mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
++        StringBuilder result = new StringBuilder();
++        for (byte b : mac.doFinal(value.getBytes(StandardCharsets.UTF_8))) {
++            result.append(String.format("%02x", b));
++        }
++        return result.toString();
+     }
+ }
+diff --git a/it-main/src/test/java/com/clean/it/service/impl/ReservationServiceImplTest.java b/it-main/src/test/java/com/clean/it/service/impl/ReservationServiceImplTest.java
+new file mode 100644
+index 0000000..65d6238
+--- /dev/null
++++ b/it-main/src/test/java/com/clean/it/service/impl/ReservationServiceImplTest.java
+@@ -0,0 +1,36 @@
++package com.clean.it.service.impl;
++
++import com.clean.it.domain.Reservation;
++import com.clean.it.dto.AppDtos.ReservationRequest;
++import com.clean.it.repository.ReservationRepository;
++import org.junit.jupiter.api.Test;
++
++import java.time.Instant;
++import java.util.List;
++
++import static org.assertj.core.api.Assertions.assertThatThrownBy;
++import static org.mockito.Mockito.mock;
++import static org.mockito.Mockito.when;
++
++class ReservationServiceImplTest {
++    @Test
++    void rejectsAnExistingReservationThatStartedEarlierButStillOverlaps() {
++        ReservationRepository repository = mock(ReservationRepository.class);
++        Reservation existing = new Reservation();
++        existing.setCleanerEmail("cleaner@example.com");
++        existing.setStartAt(Instant.parse("2030-01-01T10:00:00Z"));
++        existing.setDurationMinutes(120);
++        existing.setStatus("SCHEDULED");
++        when(repository.findByCleanerEmail("cleaner@example.com")).thenReturn(List.of(existing));
++
++        ReservationRequest request = new ReservationRequest();
++        request.setJobId(1L);
++        request.setCleanerEmail("cleaner@example.com");
++        request.setStartAt(Instant.parse("2030-01-01T11:00:00Z"));
++        request.setDurationMinutes(60);
++
++        assertThatThrownBy(() -> new ReservationServiceImpl(repository).reserve("client@example.com", request))
++                .isInstanceOf(IllegalStateException.class)
++                .hasMessageContaining("not available");
++    }
++}
+diff --git a/it-main/src/main/resources/static/index.html b/it-main/src/main/resources/static/index.html
+index f4254cf..223b3b7 100644
+--- a/it-main/src/main/resources/static/index.html
++++ b/it-main/src/main/resources/static/index.html
+@@ -4,6 +4,9 @@
+   <meta charset="UTF-8" />
+   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+   <title>it | Cleaners Marketplace</title>
++  <meta name="description" content="Marketplace para reservar servicios de limpieza, gestionar jobs y pagos." />
++  <meta name="theme-color" content="#08111f" />
++  <link rel="stylesheet" href="/ui.css" />
+   <link rel="preconnect" href="https://fonts.googleapis.com" />
+   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+   <style>
+@@ -28,13 +31,13 @@ const sampleQuotes = [
+ 
+ function loadAuth() {
+   try {
+-    return JSON.parse(localStorage.getItem('it-auth') || '{"mode":"none","token":"","basicUser":"","basicPassword":"","email":"client@example.com"}');
++    return JSON.parse(sessionStorage.getItem('it-auth') || '{"mode":"none","token":"","basicUser":"","basicPassword":"","email":"client@example.com"}');
+   } catch {
+     return { mode: 'none', token: '', basicUser: '', basicPassword: '', email: 'client@example.com' };
+   }
+ }
+ function saveAuth(next) {
+-  localStorage.setItem('it-auth', JSON.stringify(next));
++  sessionStorage.setItem('it-auth', JSON.stringify(next));
+ }
+ 
+ function money(cents) {
+@@ -59,7 +62,7 @@ function money(cents) {
+     job: { title: '', description: '', priceCents: 4500 },
+     reservation: { jobId: '', cleanerEmail: '', startAt: '', durationMinutes: 120 },
+     review: { cleanerEmail: '', rating: 5, comment: '' },
+-    payment: { reservationId: '', amountCents: 4500 },
++    payment: { reservationId: '' },
+   });
+   const request = useCallback(async (path, options = {}) => {
+     const headers = { ...(options.headers || {}), ...authHeader(auth) };
+@@ -84,10 +87,9 @@ function money(cents) {
+     try {
+       const payload = {
+         reservationId: Number(forms.payment.reservationId),
+-        amountCents: Number(forms.payment.amountCents),
+       };
+       const result = await request('/api/payments/create-intent', { method: 'POST', body: JSON.stringify(payload) });
+-      setMessage({ type: 'ok', text: `Client secret generado: ${result.clientSecret || 'n/a'}` });
++      setMessage({ type: 'ok', text: result.clientSecret ? 'Intent de pago generado. Continúa con Stripe Elements para completar el cobro.' : 'Intent de pago generado.' });
+       loadPayments(forms.payment.reservationId);
+     } catch (error) {
+       setMessage({ type: 'error', text: error.message });
+@@ -107,7 +109,7 @@ function money(cents) {
+           </div>
+         </aside>
+         <main className="screen">
+-          {message?.text && <div className={`message ${message.type}`}>{message.text}</div>}
++          {message?.text && <div className={`message ${message.type}`} role="status" aria-live="polite">{message.text}</div>}
+           {screen === 'home' && (
+             <>
+               <section className="hero">
+@@ -124,6 +126,6 @@ function money(cents) {
+                         </div>
+                         <div className="actions">
+-                          <button className="primary" onClick={() => { setPaymentReservationId(reservation.id); setForms((current) => ({ ...current, payment: { ...current.payment, reservationId: reservation.id, amountCents: current.payment.amountCents || 4500 } })); setScreen('payments'); }}>Cobrar</button>
++                          <button className="primary" onClick={() => { setPaymentReservationId(reservation.id); setForms((current) => ({ ...current, payment: { reservationId: reservation.id } })); setScreen('payments'); }}>Cobrar</button>
+                         </div>
+                       </div>
+                     ))}
+@@ -141,10 +143,8 @@ function money(cents) {
+                 <div className="card">
+                   <div className="section-title"><h3>Crear payment intent</h3><p>POST /api/payments/create-intent</p></div>
+                   <form onSubmit={submitPayment} className="list">
+-                    <div className="row">
+-                      <input className="input" type="number" placeholder="Reservation ID" value={forms.payment.reservationId} onChange={(e) => setForm('payment', 'reservationId', e.target.value)} required />
+-                      <input className="input" type="number" placeholder="Importe en céntimos" value={forms.payment.amountCents} onChange={(e) => setForm('payment', 'amountCents', e.target.value)} required />
+-                    </div>
++                    <input className="input" type="number" min="1" placeholder="Reservation ID" value={forms.payment.reservationId} onChange={(e) => setForm('payment', 'reservationId', e.target.value)} required />
++                    <p className="small">El importe se calcula en el servidor a partir del job asociado; no puede modificarse desde el navegador.</p>
+                     <button className="primary" type="submit">Generar intent</button>
+                   </form>
+                 </div>
