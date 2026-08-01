@@ -22,5 +22,12 @@ jobs:
           cache: maven
       - name: Verify
         run: ./mvnw -B -ntp clean verify -Dspring.profiles.active=test
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: it-main/target/site/jacoco
+          if-no-files-found: warn
       - name: Build container
         run: docker build -t clean-it:${{ github.sha }} .

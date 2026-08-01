@@ -218,8 +218,12 @@ function App() {
     const response = await fetch(path, { ...options, headers });
     const contentType = response.headers.get('content-type') || '';
     const body = contentType.includes('application/json') ? await response.json() : await response.text();
+    if (response.status === 401) {
+      sessionStorage.removeItem('it-auth');
+      setAuth({ mode: 'none', token: '', basicUser: '', basicPassword: '', email: auth.email || 'client@example.com' });
+    }
     if (!response.ok) {
-      const error = typeof body === 'string' ? body : body.error || body.message || `HTTP ${response.status}`;
+      const error = typeof body === 'string' ? body : body.detail || body.error || body.message || `HTTP ${response.status}`;
       throw new Error(error);
     }
     return body;
@@ -421,21 +425,14 @@ function App() {
     }
   };
 
-  const submitPayment = async (event) => {
+  const submitPayment = (event) => {
     event.preventDefault();
-    setBusy(true);
-    try {
-      const payload = {
-        reservationId: Number(forms.payment.reservationId),
-      };
-      const result = await request('/api/payments/create-intent', { method: 'POST', body: JSON.stringify(payload) });
-      setMessage({ type: 'ok', text: result.clientSecret ? 'Intent de pago generado. Continúa con Stripe Elements para completar el cobro.' : 'Intent de pago generado.' });
-      loadPayments(forms.payment.reservationId);
-    } catch (error) {
-      setMessage({ type: 'error', text: error.message });
-    } finally {
-      setBusy(false);
+    const reservationId = Number(forms.payment.reservationId);
+    if (!Number.isInteger(reservationId) || reservationId <= 0) {
+      setMessage({ type: 'error', text: 'Introduce un ID de reserva válido.' });
+      return;
     }
+    window.location.assign(`/checkout.html?reservationId=${encodeURIComponent(reservationId)}`);
   };
 
   return (
@@ -778,11 +775,11 @@ function App() {
               </div>
               <div className="two-col">
                 <div className="card">
-                  <div className="section-title"><h3>Crear payment intent</h3><p>POST /api/payments/create-intent</p></div>
+                  <div className="section-title"><h3>Pago seguro</h3><p>Stripe Payment Element</p></div>
                   <form onSubmit={submitPayment} className="list">
                     <input className="input" type="number" min="1" placeholder="Reservation ID" value={forms.payment.reservationId} onChange={(e) => setForm('payment', 'reservationId', e.target.value)} required />
                     <p className="small">El importe se calcula en el servidor a partir del job asociado; no puede modificarse desde el navegador.</p>
-                    <button className="primary" type="submit">Generar intent</button>
+                    <button className="primary" type="submit">Ir al pago seguro</button>
                   </form>
                 </div>
                 <div className="card">

@@ -1,10 +1,9 @@
 package com.clean.it.controller;
 
 import com.clean.it.domain.Payment;
-import com.clean.it.domain.Reservation;
 import com.clean.it.dto.AppDtos.PaymentRequest;
 import com.clean.it.dto.AppDtos.PaymentResponse;
-import com.clean.it.repository.ReservationRepository;
+import com.clean.it.dto.AppDtos.PaymentSummary;
 import com.clean.it.service.PaymentService;
 import com.clean.it.service.PaymentStore;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,7 +11,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
@@ -23,55 +28,50 @@ public class PaymentController {
 
     private final PaymentService paymentService;
     private final PaymentStore paymentStore;
-    private final ReservationRepository reservationRepository;
 
-    public PaymentController(PaymentService paymentService,
-                             PaymentStore paymentStore,
-                             ReservationRepository reservationRepository) {
+    public PaymentController(PaymentService paymentService, PaymentStore paymentStore) {
         this.paymentService = paymentService;
         this.paymentStore = paymentStore;
-        this.reservationRepository = reservationRepository;
     }
 
     @PostMapping("/create-intent")
-    @Operation(summary = "Crear un intent de pago")
+    @Operation(summary = "Crear o reutilizar un intent de pago")
     public ResponseEntity<PaymentResponse> createIntent(Authentication authentication,
                                                         @Valid @RequestBody PaymentRequest req) {
-        PaymentResponse response = paymentService.createPaymentIntent(authentication.getName(), req);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(paymentService.createPaymentIntent(authentication.getName(), req));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Obtener un pago por ID")
-    public ResponseEntity<?> getPayment(Authentication authentication, @PathVariable("id") Long id) {
-        return paymentStore.findById(id)
-                .map(payment -> canAccess(authentication.getName(), payment)
-                        ? ResponseEntity.ok(payment)
-                        : ResponseEntity.status(403).body(java.util.Map.of("error", "forbidden")))
-                .orElseGet(() -> ResponseEntity.status(404).body(java.util.Map.of("error", "not found")));
+    public ResponseEntity<PaymentSummary> getPayment(Authentication authentication,
+                                                     @PathVariable("id") Long id) {
+        return paymentStore.findByIdVisibleToUser(id, authentication.getName())
+                .map(this::toSummary)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping
-    @Operation(summary = "Listar pagos")
-    public ResponseEntity<List<Payment>> findByReservation(Authentication authentication,
-                                                           @RequestParam(value = "reservationId", required = false) Long reservationId) {
-        List<Payment> source = reservationId == null
-                ? paymentStore.findAll()
-                : paymentStore.findByReservationId(reservationId);
-        List<Payment> visible = source.stream()
-                .filter(payment -> canAccess(authentication.getName(), payment))
-                .toList();
-        return ResponseEntity.ok(visible);
+    @Operation(summary = "Listar pagos accesibles por el usuario")
+    public ResponseEntity<List<PaymentSummary>> findByReservation(
+            Authentication authentication,
+            @RequestParam(value = "reservationId", required = false) Long reservationId) {
+        List<Payment> payments = reservationId == null
+                ? paymentStore.findVisibleToUser(authentication.getName())
+                : paymentStore.findByReservationIdVisibleToUser(reservationId, authentication.getName());
+        return ResponseEntity.ok(payments.stream().map(this::toSummary).toList());
     }
 
-    private boolean canAccess(String userEmail, Payment payment) {
-        return reservationRepository.findById(payment.getReservationId())
-                .map(reservation -> isParticipant(userEmail, reservation))
-                .orElse(false);
-    }
-
-    private boolean isParticipant(String userEmail, Reservation reservation) {
-        return userEmail != null && (userEmail.equalsIgnoreCase(reservation.getClientEmail())
-                || userEmail.equalsIgnoreCase(reservation.getCleanerEmail()));
+    private PaymentSummary toSummary(Payment payment) {
+        PaymentSummary summary = new PaymentSummary();
+        summary.setId(payment.getId());
+        summary.setReservationId(payment.getReservationId());
+        summary.setAmountCents(payment.getAmountCents());
+        summary.setCurrency(payment.getCurrency());
+        summary.setStripePaymentIntentId(payment.getStripePaymentIntentId());
+        summary.setStatus(payment.getStatus());
+        summary.setCreatedAt(payment.getCreatedAt());
+        summary.setUpdatedAt(payment.getUpdatedAt());
+        return summary;
     }
 }

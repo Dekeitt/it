@@ -13,3 +13,12 @@ spring:
 security:
   jwt:
     secret: test-secret-at-least-thirty-two-bytes-long
+    issuer: clean-it-test
+    audience: clean-it-api
+    jwk-set-uri: ""
+  basic:
+    enabled: false
+stripe:
+  secret-key: sk_test_not_used
+  publishable-key: pk_test_not_used
+  webhook-secret: whsec_test

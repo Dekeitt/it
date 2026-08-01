@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Pago seguro de una reserva de Clean IT">
+  <title>Pago seguro | Clean IT</title>
+  <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px;
+      background: radial-gradient(circle at top, #17365e, #08111f 48%); color: #eef6ff; }
+    main { width: min(100%, 620px); padding: clamp(24px, 5vw, 44px); border: 1px solid #29476b;
+      border-radius: 24px; background: rgba(10, 25, 43, .94); box-shadow: 0 24px 80px rgba(0,0,0,.35); }
+    h1 { margin-top: 0; font-size: clamp(1.8rem, 6vw, 2.8rem); }
+    p { line-height: 1.6; color: #b9cce2; }
+    .summary { display: flex; justify-content: space-between; gap: 16px; margin: 22px 0;
+      padding: 16px; border-radius: 14px; background: #0f2138; }
+    #payment-element { margin: 20px 0; }
+    button, a.button { width: 100%; display: inline-flex; justify-content: center; align-items: center;
+      min-height: 48px; padding: 12px 18px; border: 0; border-radius: 12px; font-weight: 750;
+      text-decoration: none; cursor: pointer; background: #5fe1c1; color: #041b19; }
+    button:disabled { cursor: wait; opacity: .65; }
+    a.button { margin-top: 12px; background: transparent; color: #cfe1f5; border: 1px solid #345678; }
+    .message { min-height: 24px; margin-top: 16px; }
+    .error { color: #ffb5b5; }
+    .ok { color: #8ef0d2; }
+    :focus-visible { outline: 3px solid #ffda79; outline-offset: 3px; }
+  </style>
+</head>
+<body>
+<main>
+  <p aria-hidden="true">CLEAN IT · STRIPE</p>
+  <h1>Completa el pago</h1>
+  <p>Los datos de la tarjeta se envían directamente a Stripe. Clean IT no almacena la tarjeta.</p>
+  <div class="summary" aria-live="polite">
+    <span>Reserva <strong id="reservation-label">—</strong></span>
+    <strong id="amount-label">Cargando…</strong>
+  </div>
+  <form id="payment-form" hidden>
+    <div id="payment-element"></div>
+    <button id="submit-button" type="submit"><span id="button-text">Pagar ahora</span></button>
+  </form>
+  <div id="message" class="message" role="status" aria-live="polite"></div>
+  <a class="button" href="/">Volver al panel</a>
+</main>
+<script>
+  const params = new URLSearchParams(location.search);
+  const reservationId = Number(params.get('reservationId'));
+  const returnedClientSecret = params.get('payment_intent_client_secret');
+  const message = document.getElementById('message');
+  const form = document.getElementById('payment-form');
+  const submitButton = document.getElementById('submit-button');
+  let stripe;
+  let elements;
+
+  document.getElementById('reservation-label').textContent = Number.isInteger(reservationId) && reservationId > 0
+    ? `#${reservationId}` : 'no válida';
+
+  function authHeader() {
+    try {
+      const auth = JSON.parse(sessionStorage.getItem('it-auth') || '{}');
+      if (auth.mode === 'bearer' && auth.token) return { Authorization: `Bearer ${auth.token}` };
+      if (auth.mode === 'basic' && auth.basicUser && auth.basicPassword) {
+        return { Authorization: `Basic ${btoa(`${auth.basicUser}:${auth.basicPassword}`)}` };
+      }
+    } catch (_) { }
+    return {};
+  }
+
+  function show(text, type = '') {
+    message.textContent = text;
+    message.className = `message ${type}`;
+  }
+
+  function formatMoney(cents, currency) {
+    return new Intl.NumberFormat('es-ES', { style: 'currency', currency: currency.toUpperCase() })
+      .format(cents / 100);
+  }
+
+  async function initialize() {
+    if (!Number.isInteger(reservationId) || reservationId <= 0) {
+      show('La reserva indicada no es válida.', 'error');
+      return;
+    }
+    show('Preparando el pago…');
+    const response = await fetch('/api/payments/create-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify({ reservationId })
+    });
+    if (response.status === 401) {
+      throw new Error('Tu sesión ha caducado. Vuelve al panel e inicia sesión de nuevo.');
+    }
+    if (!response.ok) {
+      const problem = await response.json().catch(() => ({}));
+      throw new Error(problem.detail || problem.error || 'No se pudo preparar el pago.');
+    }
+    const payment = await response.json();
+    if (!payment.publishableKey || !payment.clientSecret) {
+      throw new Error('Stripe no está configurado correctamente.');
+    }
+
+    document.getElementById('amount-label').textContent = formatMoney(payment.amountCents, payment.currency);
+    stripe = Stripe(payment.publishableKey);
+    if (returnedClientSecret) {
+      if (returnedClientSecret !== payment.clientSecret) {
+        throw new Error('El retorno de Stripe no corresponde a esta reserva.');
+      }
+      const { paymentIntent, error } = await stripe.retrievePaymentIntent(returnedClientSecret);
+      if (error) throw new Error(error.message || 'No se pudo consultar el estado del pago.');
+      if (paymentIntent.status === 'succeeded') {
+        show('Pago completado. La reserva se actualizará al recibir la confirmación segura de Stripe.', 'ok');
+        return;
+      }
+      if (paymentIntent.status === 'processing') {
+        show('El pago sigue procesándose. Puedes volver al panel; el estado se actualizará automáticamente.', 'ok');
+        return;
+      }
+      if (paymentIntent.status === 'requires_payment_method') {
+        show('El pago no se completó. Revisa el método de pago e inténtalo de nuevo.', 'error');
+      }
+    }
+
+    elements = stripe.elements({
+      clientSecret: payment.clientSecret,
+      appearance: { theme: 'night', variables: { colorPrimary: '#5fe1c1', borderRadius: '10px' } }
+    });
+    elements.create('payment').mount('#payment-element');
+    form.hidden = false;
+    show('');
+  }
+
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    submitButton.disabled = true;
+    document.getElementById('button-text').textContent = 'Procesando…';
+    show('Confirmando el pago…');
+    const { error } = await stripe.confirmPayment({
+      elements,
+      confirmParams: { return_url: `${location.origin}/checkout.html?reservationId=${encodeURIComponent(reservationId)}&complete=1` }
+    });
+    if (error) {
+      show(error.message || 'No se pudo confirmar el pago.', 'error');
+      submitButton.disabled = false;
+      document.getElementById('button-text').textContent = 'Pagar ahora';
+    }
+  });
+
+  initialize().catch(error => show(error.message, 'error'));
+</script>
+</body>
+</html>

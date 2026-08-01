@@ -33,7 +33,19 @@ management:
 security:
   jwt:
     secret: ${JWT_SECRET:}
+    issuer: ${JWT_ISSUER:clean-it}
+    audience: ${JWT_AUDIENCE:clean-it-api}
+    jwk-set-uri: ${JWT_JWK_SET_URI:}
+  basic:
+    enabled: false
+    username: ""
+    password: ""
 
 stripe:
   secret-key: ${STRIPE_SECRET_KEY:}
+  publishable-key: ${STRIPE_PUBLISHABLE_KEY:}
   webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+
+logging:
+  pattern:
+    level: "%5p [requestId:%X{requestId:-}]"
