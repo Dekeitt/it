@@ -16,25 +16,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ApiSurfaceTest {
 
     @Test
-    void homeEndpointExposesApiLinks() throws Exception {
-        HomeController controller = new HomeController();
-
-        ResponseEntity<?> response = controller.home();
-
-        assertThat(response.getStatusCode().value()).isEqualTo(200);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().toString()).contains("id=\"root\"");
-        assertThat(response.getBody().toString()).contains("ReactDOM");
-    }
-
-    @Test
-    void apiInfoEndpointStillExposesDocs() {
+    void apiInfoEndpointStillExposesDocsAfterFrontendExtraction() {
         HomeController controller = new HomeController();
 
         var response = controller.info();
 
         assertThat(response).containsEntry("status", "ok");
+        assertThat(response).containsEntry("name", "it API");
         assertThat(response.toString()).contains("swaggerUi");
+        assertThat(response.toString()).contains("openApi");
     }
 
     @Test
