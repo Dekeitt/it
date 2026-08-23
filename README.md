@@ -1,42 +1,74 @@
 # Clean IT
 
-Marketplace de servicios de limpieza construido con Spring Boot, PostgreSQL, Redis y una SPA React ligera.
+Marketplace de servicios de limpieza con backend Spring Boot y frontend React/TypeScript desacoplados.
 
-## Arranque local
+## Arquitectura
+
+```text
+Browser
+  │
+  ▼
+frontend/ (React 19 + Vite + Nginx)
+  │  /api
+  ▼
+it-main/ (Spring Boot API)
+  ├── PostgreSQL
+  ├── Redis
+  └── Stripe
+```
+
+El frontend y el backend son aplicaciones independientes. En producción se recomienda mantener un único origen público y hacer reverse proxy de `/api` al backend; así el navegador no necesita CORS y la API permanece separada del bundle web.
+
+## Arranque del stack completo
+
+```bash
+docker compose up --build
+```
+
+- Frontend: `http://localhost:3000`
+- API: `http://localhost:8080/api/info`
+- Swagger: `http://localhost:8080/swagger-ui/index.html`
+- Health: `http://localhost:8080/actuator/health`
+
+Para pagos reales configura en un `.env` local `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY` y `STRIPE_WEBHOOK_SECRET`. Los valores por defecto del compose son marcadores de desarrollo y no deben usarse contra Stripe.
+
+## Desarrollo backend
 
 ```bash
 cd it-main
 ./mvnw spring-boot:run
 ```
 
-La configuración local usa H2. Para levantar PostgreSQL y Redis:
-
-```bash
-docker compose up -d
-```
-
-## Comprobaciones
-
 ```bash
 ./mvnw clean verify -Dspring.profiles.active=test
-docker build -t clean-it .
 ```
 
-## Producción
+## Desarrollo frontend
 
-Copia `.env.example`, configura secretos reales y activa `SPRING_PROFILES_ACTIVE=prod`. Nunca publiques el archivo `.env`. Para JWT configura `JWT_JWK_SET_URI` (recomendado) o un `JWT_SECRET` de al menos 32 bytes, además de `JWT_ISSUER` y `JWT_AUDIENCE`.
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-- Aplicación: `http://localhost:8080/`
-- Checkout seguro: `http://localhost:8080/checkout.html?reservationId=<id>`
-- Swagger: `http://localhost:8080/swagger-ui/index.html`
-- Health: `http://localhost:8080/actuator/health`
+Vite escucha en `http://localhost:5173` y proxifica `/api` a `http://localhost:8080`, por lo que el desarrollo local tampoco necesita CORS.
 
-## Decisiones de seguridad incluidas
+El frontend usa:
 
-- El precio y la moneda se congelan al crear la reserva; Stripe nunca confía en el importe del navegador.
+- React 19 + TypeScript + Vite.
+- TanStack Router para navegación.
+- TanStack Query para estado remoto y caché.
+- React Hook Form + Zod para formularios.
+- Stripe Payment Element para checkout.
+
+Las funcionalidades se organizan por dominio (`jobs`, `reservations`, `payments`, `reviews`) y comparten un cliente API tipado. El token de desarrollo permanece en `sessionStorage`; para producción la siguiente evolución recomendada es OIDC Authorization Code + PKCE y refresh token en cookie HttpOnly.
+
+## Seguridad y dominio
+
+- El precio y la moneda se congelan al crear la reserva; Stripe no confía en el importe del navegador.
 - Cada reserva reutiliza un único PaymentIntent con clave de idempotencia.
-- Los webhooks se verifican con el SDK oficial y se reclaman de forma atómica y reintentable.
-- Los secretos de pago y JSON crudo no se serializan en la API.
-- PostgreSQL impide solapes de reservas incluso con varias instancias de la aplicación.
-- JWT valida emisor y audiencia y puede usar claves asimétricas mediante JWK.
-- Producción usa variables obligatorias y `ddl-auto=validate`.
+- Los webhooks se verifican con el SDK oficial y se procesan de forma idempotente.
+- PostgreSQL impide solapes de reservas incluso con varias instancias del backend.
+- JWT valida emisor y audiencia y puede usar JWK asimétrico.
+- `/api/jobs/open` requiere identidad y rol, coherente con `JobController`; ya no se publica accidentalmente desde `SecurityConfig`.
+- El backend ya no sirve React, Babel ni páginas HTML: expone únicamente API, documentación y health checks.
