@@ -1,0 +1,21 @@
+:{$PORT:8080} {
+    root * /srv
+    encode zstd gzip
+
+    @health path /healthz
+    respond @health "ok" 200
+
+    route {
+        reverse_proxy /api* {$BACKEND_URL:http://backend:8080}
+
+        try_files {path} /index.html
+        header /index.html Cache-Control "public, max-age=0, must-revalidate"
+        file_server
+    }
+
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    }
+}
