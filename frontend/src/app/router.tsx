@@ -1,0 +1,30 @@
+import { createRootRoute, createRoute, createRouter } from '@tanstack/react-router';
+import { Shell } from './Shell';
+import { HomePage } from '../features/home/HomePage';
+import { MarketplacePage } from '../features/marketplace/MarketplacePage';
+import { JobsPage } from '../features/jobs/JobsPage';
+import { ReservationsPage } from '../features/reservations/ReservationsPage';
+import { CheckoutPage } from '../features/reservations/CheckoutPage';
+import { PaymentsPage } from '../features/payments/PaymentsPage';
+import { ReviewsPage } from '../features/reviews/ReviewsPage';
+import { AccountPage } from '../features/account/AccountPage';
+
+const rootRoute = createRootRoute({ component: Shell });
+const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: HomePage });
+const marketplaceRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketplace', component: MarketplacePage });
+const jobsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/jobs', component: JobsPage });
+const reservationsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/reservations', component: ReservationsPage });
+const checkoutRoute = createRoute({ getParentRoute: () => rootRoute, path: '/checkout/$reservationId', component: CheckoutPage });
+const paymentsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/payments', component: PaymentsPage });
+const reviewsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/reviews', component: ReviewsPage });
+const accountRoute = createRoute({ getParentRoute: () => rootRoute, path: '/account', component: AccountPage });
+
+const routeTree = rootRoute.addChildren([
+  homeRoute, marketplaceRoute, jobsRoute, reservationsRoute, checkoutRoute, paymentsRoute, reviewsRoute, accountRoute,
+]);
+
+export const router = createRouter({ routeTree, defaultPreload: 'intent' });
+
+declare module '@tanstack/react-router' {
+  interface Register { router: typeof router }
+}
