@@ -88,13 +88,11 @@ public class SecurityConfig {
                                         + "connect-src 'self' https://api.stripe.com https://link.com https://*.link.com; "
                                         + "object-src 'none'; base-uri 'self'; frame-ancestors 'self'")))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/index.html", "/checkout.html", "/ui.css", "/api/info",
-                                "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health", "/postman_collection.json")
+                        .requestMatchers("/api/info", "/swagger-ui/**", "/v3/api-docs/**", "/actuator/health")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/cleaners", "/api/cleaners/**",
-                                "/api/reviews/**", "/api/jobs/open").permitAll()
-                        .requestMatchers("/ws/**", "/sockjs/**", "/topic/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/cleaners", "/api/cleaners/**", "/api/reviews/**")
+                        .permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(
                         jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
