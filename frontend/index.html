@@ -2,13 +2,29 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="Clean IT, marketplace de servicios de limpieza." />
     <meta name="theme-color" content="#08111f" />
+    <meta name="application-name" content="Clean IT" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Clean IT" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <title>Clean IT</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch((error) => {
+            console.warn('Clean IT service worker registration failed', error);
+          });
+        });
+      }
+    </script>
   </body>
 </html>
