@@ -5,5 +5,5 @@ import com.clean.it.dto.AppDtos.PaymentResponse;
 
 public interface PaymentService {
     PaymentResponse createPaymentIntent(String userEmail, PaymentRequest req);
+    void cancelOrRefundReservationPayment(Long reservationId);
 }
-
