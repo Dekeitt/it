@@ -1,12 +1,10 @@
 package com.clean.it.controller;
 
-import com.clean.it.dto.AppDtos.ReviewRequest;
+import com.clean.it.dto.AppDtos.ReservationReviewRequest;
 import com.clean.it.dto.AppDtos.ReviewResponse;
 import com.clean.it.service.ReviewService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,43 +26,38 @@ class ApiSurfaceTest {
     }
 
     @Test
-    void reviewApiCreatesAndListsReviews() {
+    void reviewApiOnlyListsVerifiedReviews() {
         InMemoryReviewService service = new InMemoryReviewService();
         ReviewApiController controller = new ReviewApiController(service);
-        Authentication auth = new UsernamePasswordAuthenticationToken("client@example.com", "secret", List.of());
-
-        ReviewRequest request = new ReviewRequest();
-        request.setCleanerEmail("cleaner@example.com");
-        request.setRating(5);
-        request.setComment("Excelente servicio");
-
-        ResponseEntity<ReviewResponse> created = controller.addReview(auth, request);
-
-        assertThat(created.getStatusCode().value()).isEqualTo(200);
-        assertThat(created.getBody()).isNotNull();
-        assertThat(created.getBody().getCleanerEmail()).isEqualTo("cleaner@example.com");
-        assertThat(created.getBody().getClientEmail()).isEqualTo("client@example.com");
+        service.addVerifiedReview(42L, "client@example.com", "cleaner@example.com", 5, "Excelente servicio");
 
         ResponseEntity<List<ReviewResponse>> listed = controller.list("cleaner@example.com");
 
         assertThat(listed.getStatusCode().value()).isEqualTo(200);
         assertThat(listed.getBody()).hasSize(1);
+        assertThat(listed.getBody().get(0).getReservationId()).isEqualTo(42L);
         assertThat(listed.getBody().get(0).getComment()).isEqualTo("Excelente servicio");
     }
 
     static class InMemoryReviewService implements ReviewService {
         private final List<ReviewResponse> reviews = new ArrayList<>();
 
+        void addVerifiedReview(long reservationId, String clientEmail, String cleanerEmail,
+                               int rating, String comment) {
+            ReviewResponse response = new ReviewResponse();
+            response.setId((long) reviews.size() + 1);
+            response.setReservationId(reservationId);
+            response.setCleanerEmail(cleanerEmail);
+            response.setClientEmail(clientEmail);
+            response.setRating(rating);
+            response.setComment(comment);
+            reviews.add(response);
+        }
+
         @Override
-        public ReviewResponse addReview(String clientEmail, ReviewRequest req) {
-            ReviewResponse resp = new ReviewResponse();
-            resp.setId((long) reviews.size() + 1);
-            resp.setCleanerEmail(req.getCleanerEmail());
-            resp.setClientEmail(clientEmail);
-            resp.setRating(req.getRating());
-            resp.setComment(req.getComment());
-            reviews.add(resp);
-            return resp;
+        public ReviewResponse addReviewForReservation(String clientEmail, Long reservationId,
+                                                      ReservationReviewRequest request) {
+            throw new UnsupportedOperationException("Not needed by this controller surface test");
         }
 
         @Override
