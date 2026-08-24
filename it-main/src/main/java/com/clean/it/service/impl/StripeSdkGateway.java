@@ -4,6 +4,7 @@ import com.clean.it.service.StripeGateway;
 import com.clean.it.service.StripeGatewayException;
 import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
+import com.stripe.model.Refund;
 import com.stripe.net.RequestOptions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -46,10 +47,7 @@ public class StripeSdkGateway implements StripeGateway {
             params.put("automatic_payment_methods", Map.of("enabled", true));
             params.put("metadata", Map.of("reservationId", String.valueOf(reservationId)));
             params.put("description", "Clean IT reservation " + reservationId);
-
-            RequestOptions options = requestOptions()
-                    .setIdempotencyKey(idempotencyKey)
-                    .build();
+            RequestOptions options = requestOptions().setIdempotencyKey(idempotencyKey).build();
             return snapshot(PaymentIntent.create(params, options));
         } catch (StripeException exception) {
             throw new StripeGatewayException("Stripe could not initialize the payment", exception);
@@ -62,6 +60,27 @@ public class StripeSdkGateway implements StripeGateway {
             return snapshot(PaymentIntent.retrieve(paymentIntentId, (Map<String, Object>) null, requestOptions().build()));
         } catch (StripeException exception) {
             throw new StripeGatewayException("Stripe could not retrieve the existing payment", exception);
+        }
+    }
+
+    @Override
+    public IntentSnapshot cancelPaymentIntent(String paymentIntentId) {
+        try {
+            PaymentIntent intent = PaymentIntent.retrieve(paymentIntentId, (Map<String, Object>) null, requestOptions().build());
+            return snapshot(intent.cancel(requestOptions().build()));
+        } catch (StripeException exception) {
+            throw new StripeGatewayException("Stripe could not cancel the payment", exception);
+        }
+    }
+
+    @Override
+    public RefundSnapshot refundPaymentIntent(String paymentIntentId, String idempotencyKey) {
+        try {
+            RequestOptions options = requestOptions().setIdempotencyKey(idempotencyKey).build();
+            Refund refund = Refund.create(Map.of("payment_intent", paymentIntentId), options);
+            return new RefundSnapshot(refund.getId(), refund.getStatus(), refund.toJson());
+        } catch (StripeException exception) {
+            throw new StripeGatewayException("Stripe could not refund the payment", exception);
         }
     }
 

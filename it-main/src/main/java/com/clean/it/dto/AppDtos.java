@@ -9,10 +9,25 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalTime;
+import java.util.List;
 
 public final class AppDtos {
     private AppDtos() {
+    }
+
+    public static class MeResponse {
+        private String subject;
+        private String email;
+        private List<String> roles;
+        public String getSubject() { return subject; }
+        public void setSubject(String subject) { this.subject = subject; }
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
+        public List<String> getRoles() { return roles; }
+        public void setRoles(List<String> roles) { this.roles = roles; }
     }
 
     public static class CleanerDto {
@@ -30,6 +45,46 @@ public final class AppDtos {
         public void setRating(Double rating) { this.rating = rating; }
     }
 
+    public static class AvailabilitySlotRequest {
+        @NotNull
+        private DayOfWeek dayOfWeek;
+        @NotNull
+        private LocalTime startTime;
+        @NotNull
+        private LocalTime endTime;
+        @NotBlank
+        private String zoneId = "Europe/Madrid";
+        public DayOfWeek getDayOfWeek() { return dayOfWeek; }
+        public void setDayOfWeek(DayOfWeek dayOfWeek) { this.dayOfWeek = dayOfWeek; }
+        public LocalTime getStartTime() { return startTime; }
+        public void setStartTime(LocalTime startTime) { this.startTime = startTime; }
+        public LocalTime getEndTime() { return endTime; }
+        public void setEndTime(LocalTime endTime) { this.endTime = endTime; }
+        public String getZoneId() { return zoneId; }
+        public void setZoneId(String zoneId) { this.zoneId = zoneId; }
+    }
+
+    public static class AvailabilitySlotResponse {
+        private Long id;
+        private String cleanerEmail;
+        private DayOfWeek dayOfWeek;
+        private LocalTime startTime;
+        private LocalTime endTime;
+        private String zoneId;
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public String getCleanerEmail() { return cleanerEmail; }
+        public void setCleanerEmail(String cleanerEmail) { this.cleanerEmail = cleanerEmail; }
+        public DayOfWeek getDayOfWeek() { return dayOfWeek; }
+        public void setDayOfWeek(DayOfWeek dayOfWeek) { this.dayOfWeek = dayOfWeek; }
+        public LocalTime getStartTime() { return startTime; }
+        public void setStartTime(LocalTime startTime) { this.startTime = startTime; }
+        public LocalTime getEndTime() { return endTime; }
+        public void setEndTime(LocalTime endTime) { this.endTime = endTime; }
+        public String getZoneId() { return zoneId; }
+        public void setZoneId(String zoneId) { this.zoneId = zoneId; }
+    }
+
     public static class ReservationRequest {
         @NotNull @Positive
         private Long jobId;
@@ -43,6 +98,17 @@ public final class AppDtos {
         public void setJobId(Long jobId) { this.jobId = jobId; }
         public String getCleanerEmail() { return cleanerEmail; }
         public void setCleanerEmail(String cleanerEmail) { this.cleanerEmail = cleanerEmail; }
+        public Instant getStartAt() { return startAt; }
+        public void setStartAt(Instant startAt) { this.startAt = startAt; }
+        public Integer getDurationMinutes() { return durationMinutes; }
+        public void setDurationMinutes(Integer durationMinutes) { this.durationMinutes = durationMinutes; }
+    }
+
+    public static class ReservationRescheduleRequest {
+        @NotNull @Future
+        private Instant startAt;
+        @NotNull @Min(30) @Max(1440)
+        private Integer durationMinutes;
         public Instant getStartAt() { return startAt; }
         public void setStartAt(Instant startAt) { this.startAt = startAt; }
         public Integer getDurationMinutes() { return durationMinutes; }
@@ -152,8 +218,20 @@ public final class AppDtos {
         public void setComment(String comment) { this.comment = comment; }
     }
 
+    public static class ReservationReviewRequest {
+        @NotNull @Min(1) @Max(5)
+        private Integer rating;
+        @Size(max = 2000)
+        private String comment;
+        public Integer getRating() { return rating; }
+        public void setRating(Integer rating) { this.rating = rating; }
+        public String getComment() { return comment; }
+        public void setComment(String comment) { this.comment = comment; }
+    }
+
     public static class ReviewResponse {
         private Long id;
+        private Long reservationId;
         private String cleanerEmail;
         private String clientEmail;
         private Integer rating;
@@ -161,6 +239,8 @@ public final class AppDtos {
         private Instant createdAt;
         public Long getId() { return id; }
         public void setId(Long id) { this.id = id; }
+        public Long getReservationId() { return reservationId; }
+        public void setReservationId(Long reservationId) { this.reservationId = reservationId; }
         public String getCleanerEmail() { return cleanerEmail; }
         public void setCleanerEmail(String cleanerEmail) { this.cleanerEmail = cleanerEmail; }
         public String getClientEmail() { return clientEmail; }

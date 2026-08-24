@@ -4,6 +4,7 @@ import com.clean.it.domain.Payment;
 import com.clean.it.dto.AppDtos.PaymentRequest;
 import com.clean.it.dto.AppDtos.PaymentResponse;
 import com.clean.it.dto.AppDtos.PaymentSummary;
+import com.clean.it.security.AuthenticatedUser;
 import com.clean.it.service.PaymentService;
 import com.clean.it.service.PaymentStore;
 import io.swagger.v3.oas.annotations.Operation;
@@ -28,24 +29,28 @@ public class PaymentController {
 
     private final PaymentService paymentService;
     private final PaymentStore paymentStore;
+    private final AuthenticatedUser authenticatedUser;
 
-    public PaymentController(PaymentService paymentService, PaymentStore paymentStore) {
+    public PaymentController(PaymentService paymentService,
+                             PaymentStore paymentStore,
+                             AuthenticatedUser authenticatedUser) {
         this.paymentService = paymentService;
         this.paymentStore = paymentStore;
+        this.authenticatedUser = authenticatedUser;
     }
 
     @PostMapping("/create-intent")
     @Operation(summary = "Crear o reutilizar un intent de pago")
     public ResponseEntity<PaymentResponse> createIntent(Authentication authentication,
                                                         @Valid @RequestBody PaymentRequest req) {
-        return ResponseEntity.ok(paymentService.createPaymentIntent(authentication.getName(), req));
+        return ResponseEntity.ok(paymentService.createPaymentIntent(authenticatedUser.email(authentication), req));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Obtener un pago por ID")
     public ResponseEntity<PaymentSummary> getPayment(Authentication authentication,
                                                      @PathVariable("id") Long id) {
-        return paymentStore.findByIdVisibleToUser(id, authentication.getName())
+        return paymentStore.findByIdVisibleToUser(id, authenticatedUser.email(authentication))
                 .map(this::toSummary)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
@@ -56,9 +61,10 @@ public class PaymentController {
     public ResponseEntity<List<PaymentSummary>> findByReservation(
             Authentication authentication,
             @RequestParam(value = "reservationId", required = false) Long reservationId) {
+        String email = authenticatedUser.email(authentication);
         List<Payment> payments = reservationId == null
-                ? paymentStore.findVisibleToUser(authentication.getName())
-                : paymentStore.findByReservationIdVisibleToUser(reservationId, authentication.getName());
+                ? paymentStore.findVisibleToUser(email)
+                : paymentStore.findByReservationIdVisibleToUser(reservationId, email);
         return ResponseEntity.ok(payments.stream().map(this::toSummary).toList());
     }
 

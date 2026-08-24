@@ -2,15 +2,20 @@ package com.clean.it.controller;
 
 import com.clean.it.dto.JobDtos.CreateJobRequest;
 import com.clean.it.dto.JobDtos.JobResponse;
+import com.clean.it.security.AuthenticatedUser;
 import com.clean.it.service.JobService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
@@ -20,21 +25,19 @@ import java.util.List;
 public class JobController {
 
     private final JobService jobService;
+    private final AuthenticatedUser authenticatedUser;
 
-    public JobController(JobService jobService) {
+    public JobController(JobService jobService, AuthenticatedUser authenticatedUser) {
         this.jobService = jobService;
+        this.authenticatedUser = authenticatedUser;
     }
 
     @PostMapping
     @PreAuthorize("hasRole('CLIENT')")
     @Operation(summary = "Crear un job")
-    public ResponseEntity<?> createJob(Authentication authentication, @Valid @RequestBody CreateJobRequest req) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(java.util.Map.of("error", "Unauthenticated request: missing principal (ensure BasicAuth or Bearer token is provided)"));
-        }
-        String email = authentication.getName();
-        JobResponse resp = jobService.createJob(email, req);
-        return ResponseEntity.ok(resp);
+    public ResponseEntity<JobResponse> createJob(Authentication authentication,
+                                                 @Valid @RequestBody CreateJobRequest req) {
+        return ResponseEntity.ok(jobService.createJob(authenticatedUser.email(authentication), req));
     }
 
     @GetMapping("/open")
@@ -47,12 +50,7 @@ public class JobController {
     @PostMapping("/{id}/accept")
     @PreAuthorize("hasRole('CLEANER')")
     @Operation(summary = "Aceptar un job")
-    public ResponseEntity<?> acceptJob(Authentication authentication, @PathVariable("id") Long id) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(java.util.Map.of("error", "Unauthenticated request: missing principal (ensure BasicAuth or Bearer token is provided)"));
-        }
-        String cleaner = authentication.getName();
-        JobResponse resp = jobService.acceptJob(cleaner, id);
-        return ResponseEntity.ok(resp);
+    public ResponseEntity<JobResponse> acceptJob(Authentication authentication, @PathVariable("id") Long id) {
+        return ResponseEntity.ok(jobService.acceptJob(authenticatedUser.email(authentication), id));
     }
 }

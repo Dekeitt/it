@@ -1,46 +1,102 @@
 package com.clean.it.controller;
 
 import com.clean.it.dto.AppDtos.ReservationRequest;
+import com.clean.it.dto.AppDtos.ReservationRescheduleRequest;
 import com.clean.it.dto.AppDtos.ReservationResponse;
+import com.clean.it.dto.AppDtos.ReservationReviewRequest;
+import com.clean.it.dto.AppDtos.ReviewResponse;
+import com.clean.it.security.AuthenticatedUser;
 import com.clean.it.service.ReservationService;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import com.clean.it.service.ReviewService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/reservations")
-@Tag(name = "Reservations", description = "Operaciones de reservas de jobs")
+@Tag(name = "Reservations", description = "Ciclo completo de reservas")
 public class ReservationController {
 
     private final ReservationService reservationService;
+    private final ReviewService reviewService;
+    private final AuthenticatedUser authenticatedUser;
 
-    public ReservationController(ReservationService reservationService) {
+    public ReservationController(ReservationService reservationService,
+                                 ReviewService reviewService,
+                                 AuthenticatedUser authenticatedUser) {
         this.reservationService = reservationService;
+        this.reviewService = reviewService;
+        this.authenticatedUser = authenticatedUser;
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('CLIENT')")
     @Operation(summary = "Crear una reserva")
-    public ResponseEntity<ReservationResponse> reserve(Authentication authentication, @Valid @RequestBody ReservationRequest req) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            return ResponseEntity.status(401).build();
-        }
-        String client = authentication.getName();
-        ReservationResponse resp = reservationService.reserve(client, req);
-        return ResponseEntity.ok(resp);
+    public ResponseEntity<ReservationResponse> reserve(Authentication authentication,
+                                                       @Valid @RequestBody ReservationRequest request) {
+        return ResponseEntity.ok(reservationService.reserve(authenticatedUser.email(authentication), request));
     }
 
     @GetMapping
     @Operation(summary = "Listar reservas del usuario autenticado")
-    public ResponseEntity<java.util.List<ReservationResponse>> list(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            return ResponseEntity.status(401).build();
-        }
-        String user = authentication.getName();
-        java.util.List<ReservationResponse> list = reservationService.listForUser(user);
-        return ResponseEntity.ok(list);
+    public ResponseEntity<List<ReservationResponse>> list(Authentication authentication) {
+        return ResponseEntity.ok(reservationService.listForUser(authenticatedUser.email(authentication)));
+    }
+
+    @GetMapping("/{id}")
+    @Operation(summary = "Obtener una reserva visible para el usuario")
+    public ResponseEntity<ReservationResponse> get(Authentication authentication, @PathVariable Long id) {
+        return ResponseEntity.ok(reservationService.getForUser(authenticatedUser.email(authentication), id));
+    }
+
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasRole('CLIENT')")
+    @Operation(summary = "Cancelar una reserva y cancelar/reembolsar su pago si existe")
+    public ResponseEntity<ReservationResponse> cancel(Authentication authentication, @PathVariable Long id) {
+        return ResponseEntity.ok(reservationService.cancel(authenticatedUser.email(authentication), id));
+    }
+
+    @PostMapping("/{id}/reschedule")
+    @PreAuthorize("hasRole('CLIENT')")
+    @Operation(summary = "Reprogramar una reserva")
+    public ResponseEntity<ReservationResponse> reschedule(Authentication authentication,
+                                                          @PathVariable Long id,
+                                                          @Valid @RequestBody ReservationRescheduleRequest request) {
+        return ResponseEntity.ok(reservationService.reschedule(authenticatedUser.email(authentication), id, request));
+    }
+
+    @PostMapping("/{id}/start")
+    @PreAuthorize("hasRole('CLEANER')")
+    @Operation(summary = "Marcar una reserva como iniciada")
+    public ResponseEntity<ReservationResponse> start(Authentication authentication, @PathVariable Long id) {
+        return ResponseEntity.ok(reservationService.start(authenticatedUser.email(authentication), id));
+    }
+
+    @PostMapping("/{id}/complete")
+    @PreAuthorize("hasRole('CLEANER')")
+    @Operation(summary = "Marcar una reserva como completada")
+    public ResponseEntity<ReservationResponse> complete(Authentication authentication, @PathVariable Long id) {
+        return ResponseEntity.ok(reservationService.complete(authenticatedUser.email(authentication), id));
+    }
+
+    @PostMapping("/{id}/review")
+    @PreAuthorize("hasRole('CLIENT')")
+    @Operation(summary = "Crear la reseña de una reserva completada")
+    public ResponseEntity<ReviewResponse> review(Authentication authentication,
+                                                 @PathVariable Long id,
+                                                 @Valid @RequestBody ReservationReviewRequest request) {
+        return ResponseEntity.ok(reviewService.addReviewForReservation(
+                authenticatedUser.email(authentication), id, request));
     }
 }
