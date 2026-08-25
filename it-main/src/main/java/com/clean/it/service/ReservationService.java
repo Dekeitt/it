@@ -7,11 +7,11 @@ import com.clean.it.dto.AppDtos.ReservationResponse;
 import java.util.List;
 
 public interface ReservationService {
-    ReservationResponse reserve(String clientEmail, ReservationRequest req);
-    List<ReservationResponse> listForUser(String userEmail);
-    ReservationResponse getForUser(String userEmail, Long reservationId);
-    ReservationResponse cancel(String clientEmail, Long reservationId);
-    ReservationResponse reschedule(String clientEmail, Long reservationId, ReservationRescheduleRequest request);
-    ReservationResponse start(String cleanerEmail, Long reservationId);
-    ReservationResponse complete(String cleanerEmail, Long reservationId);
+    ReservationResponse reserve(Long clientId, String clientEmail, ReservationRequest req);
+    List<ReservationResponse> listForUser(Long userId);
+    ReservationResponse getForUser(Long userId, Long reservationId);
+    ReservationResponse cancel(Long clientId, Long reservationId);
+    ReservationResponse reschedule(Long clientId, Long reservationId, ReservationRescheduleRequest request);
+    ReservationResponse start(Long cleanerId, Long reservationId);
+    ReservationResponse complete(Long cleanerId, Long reservationId);
 }
