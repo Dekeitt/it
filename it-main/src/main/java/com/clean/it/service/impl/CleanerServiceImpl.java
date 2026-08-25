@@ -26,9 +26,11 @@ public class CleanerServiceImpl implements CleanerService {
 
     @Override
     @Transactional
-    public CleanerDto createCleaner(CleanerDto dto) {
-        Cleaner cleaner = cleanerRepository.findByEmailIgnoreCase(dto.getEmail()).orElseGet(Cleaner::new);
-        cleaner.setEmail(dto.getEmail());
+    public CleanerDto createCleaner(Long userId, String email, CleanerDto dto) {
+        Cleaner cleaner = cleanerRepository.findFirstByUserId(userId)
+                .orElseGet(() -> cleanerRepository.findByEmailIgnoreCase(email).orElseGet(Cleaner::new));
+        cleaner.setUserId(userId);
+        cleaner.setEmail(email);
         cleaner.setName(dto.getName());
         if (cleaner.getRating() == null) {
             cleaner.setRating(0.0);
