@@ -7,7 +7,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.Arrays;
 
 @Service
 public class UserAccountService {
@@ -73,7 +73,10 @@ public class UserAccountService {
     }
 
     private String firstNonBlank(String... values) {
-        return List.of(values).stream().filter(value -> value != null && !value.isBlank()).findFirst().orElse(null);
+        return Arrays.stream(values)
+                .filter(value -> value != null && !value.isBlank())
+                .findFirst()
+                .orElse(null);
     }
 
     private record Identity(String issuer, String subject, String email, String displayName, String roles) {}
