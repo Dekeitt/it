@@ -28,18 +28,18 @@ public class PaymentStoreJpa implements PaymentStore {
     }
 
     @Override
-    public Optional<Payment> findByIdVisibleToUser(Long id, String email) {
-        return paymentRepository.findByIdVisibleToUser(id, email);
+    public Optional<Payment> findByIdVisibleToUser(Long id, Long userId) {
+        return paymentRepository.findByIdVisibleToUser(id, userId);
     }
 
     @Override
-    public List<Payment> findVisibleToUser(String email) {
-        return paymentRepository.findVisibleToUser(email);
+    public List<Payment> findVisibleToUser(Long userId) {
+        return paymentRepository.findVisibleToUser(userId);
     }
 
     @Override
-    public List<Payment> findByReservationIdVisibleToUser(Long reservationId, String email) {
-        return paymentRepository.findByReservationIdVisibleToUser(reservationId, email);
+    public List<Payment> findByReservationIdVisibleToUser(Long reservationId, Long userId) {
+        return paymentRepository.findByReservationIdVisibleToUser(reservationId, userId);
     }
 
     @Override

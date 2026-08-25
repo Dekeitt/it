@@ -6,6 +6,6 @@ import com.clean.it.dto.AppDtos.ReviewResponse;
 import java.util.List;
 
 public interface ReviewService {
-    ReviewResponse addReviewForReservation(String clientEmail, Long reservationId, ReservationReviewRequest request);
+    ReviewResponse addReviewForReservation(Long clientId, String clientEmail, Long reservationId, ReservationReviewRequest request);
     List<ReviewResponse> listReviews(String cleanerEmail);
 }

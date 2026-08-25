@@ -16,12 +16,12 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     @Query("""
             select case when count(r) > 0 then true else false end
             from Reservation r
-            where lower(r.cleanerEmail) = lower(:cleanerEmail)
+            where r.cleanerId = :cleanerId
               and upper(r.status) <> 'CANCELLED'
               and r.startAt < :requestedEnd
               and r.endAt > :requestedStart
             """)
-    boolean existsActiveOverlap(@Param("cleanerEmail") String cleanerEmail,
+    boolean existsActiveOverlap(@Param("cleanerId") Long cleanerId,
                                 @Param("requestedStart") Instant requestedStart,
                                 @Param("requestedEnd") Instant requestedEnd);
 
@@ -29,13 +29,13 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
             select case when count(r) > 0 then true else false end
             from Reservation r
             where r.id <> :reservationId
-              and lower(r.cleanerEmail) = lower(:cleanerEmail)
+              and r.cleanerId = :cleanerId
               and upper(r.status) <> 'CANCELLED'
               and r.startAt < :requestedEnd
               and r.endAt > :requestedStart
             """)
     boolean existsActiveOverlapExcludingReservation(@Param("reservationId") Long reservationId,
-                                                     @Param("cleanerEmail") String cleanerEmail,
+                                                     @Param("cleanerId") Long cleanerId,
                                                      @Param("requestedStart") Instant requestedStart,
                                                      @Param("requestedEnd") Instant requestedEnd);
 
@@ -43,5 +43,5 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     @Query("select r from Reservation r where r.id = :id")
     Optional<Reservation> findLockedById(@Param("id") Long id);
 
-    List<Reservation> findByClientEmailOrCleanerEmail(String clientEmail, String cleanerEmail);
+    List<Reservation> findByClientIdOrCleanerId(Long clientId, Long cleanerId);
 }

@@ -8,9 +8,9 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
-    List<Review> findByCleanerEmailOrderByCreatedAtDesc(String cleanerEmail);
+    List<Review> findByCleanerIdOrderByCreatedAtDesc(Long cleanerId);
     boolean existsByReservationId(Long reservationId);
 
-    @Query("select avg(r.rating) from Review r where lower(r.cleanerEmail) = lower(:cleanerEmail)")
-    Double averageRating(@Param("cleanerEmail") String cleanerEmail);
+    @Query("select avg(r.rating) from Review r where r.cleanerId = :cleanerId")
+    Double averageRating(@Param("cleanerId") Long cleanerId);
 }

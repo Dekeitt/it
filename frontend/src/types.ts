@@ -1,4 +1,4 @@
-export type Me = { subject: string; email: string; roles: string[] };
+export type Me = { id: number; issuer: string; subject: string; email: string; roles: string[] };
 export type Cleaner = { id?: number; email: string; name: string; rating?: number };
 export type AvailabilitySlot = { id?: number; cleanerEmail?: string; dayOfWeek: 'MONDAY'|'TUESDAY'|'WEDNESDAY'|'THURSDAY'|'FRIDAY'|'SATURDAY'|'SUNDAY'; startTime: string; endTime: string; zoneId: string };
 export type Job = { id:number; clientEmail?:string; cleanerEmail?:string; status:string; title?:string; description:string; priceCents:number; createdAt?:string; updatedAt?:string };

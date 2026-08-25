@@ -1,6 +1,7 @@
 package com.clean.it.controller;
 
-import com.clean.it.dto.AppDtos.MeResponse;
+import com.clean.it.domain.UserAccount;
+import com.clean.it.dto.MeResponse;
 import com.clean.it.security.AuthenticatedUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,11 +21,14 @@ public class MeController {
     }
 
     @GetMapping
-    @Operation(summary = "Obtener la identidad autenticada")
+    @Operation(summary = "Obtener la identidad autenticada persistida")
     public MeResponse me(Authentication authentication) {
+        UserAccount account = authenticatedUser.account(authentication);
         MeResponse response = new MeResponse();
-        response.setSubject(authentication.getName());
-        response.setEmail(authenticatedUser.email(authentication));
+        response.setId(account.getId());
+        response.setIssuer(account.getIssuer());
+        response.setSubject(account.getSubject());
+        response.setEmail(account.getEmail());
         response.setRoles(authentication.getAuthorities().stream()
                 .map(authority -> authority.getAuthority())
                 .filter(authority -> authority.startsWith("ROLE_"))

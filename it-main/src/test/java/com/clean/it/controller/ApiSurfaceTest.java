@@ -55,7 +55,7 @@ class ApiSurfaceTest {
         }
 
         @Override
-        public ReviewResponse addReviewForReservation(String clientEmail, Long reservationId,
+        public ReviewResponse addReviewForReservation(Long clientId, String clientEmail, Long reservationId,
                                                       ReservationReviewRequest request) {
             throw new UnsupportedOperationException("Not needed by this controller surface test");
         }

@@ -1,9 +1,31 @@
 package com.clean.it.service.impl;
 
-import com.clean.it.domain.Cleaner;import com.clean.it.domain.Reservation;import com.clean.it.domain.Review;import com.clean.it.dto.AppDtos.ReservationReviewRequest;import com.clean.it.repository.CleanerRepository;import com.clean.it.repository.ReservationRepository;import com.clean.it.repository.ReviewRepository;import org.junit.jupiter.api.Test;import java.util.Optional;import static org.assertj.core.api.Assertions.*;import static org.mockito.ArgumentMatchers.any;import static org.mockito.Mockito.*;
+import com.clean.it.domain.Cleaner;
+import com.clean.it.domain.Reservation;
+import com.clean.it.domain.Review;
+import com.clean.it.dto.AppDtos.ReservationReviewRequest;
+import com.clean.it.repository.CleanerRepository;
+import com.clean.it.repository.ReservationRepository;
+import com.clean.it.repository.ReviewRepository;
+import org.junit.jupiter.api.Test;
+
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class ReviewServiceImplTest {
- @Test void reviewRequiresCompletedOwnedReservationAndUpdatesCleanerRating(){ReviewRepository reviews=mock(ReviewRepository.class);ReservationRepository reservations=mock(ReservationRepository.class);CleanerRepository cleaners=mock(CleanerRepository.class);Reservation reservation=reservation("COMPLETED");Cleaner cleaner=new Cleaner();cleaner.setEmail("cleaner@example.com");when(reservations.findLockedById(11L)).thenReturn(Optional.of(reservation));when(reviews.existsByReservationId(11L)).thenReturn(false);when(reviews.save(any(Review.class))).thenAnswer(i->{Review r=i.getArgument(0);r.setId(5L);return r;});when(reviews.averageRating("cleaner@example.com")).thenReturn(4.5);when(cleaners.findByEmailIgnoreCase("cleaner@example.com")).thenReturn(Optional.of(cleaner));ReservationReviewRequest request=new ReservationReviewRequest();request.setRating(5);request.setComment("Muy bien");var response=new ReviewServiceImpl(reviews,reservations,cleaners).addReviewForReservation("client@example.com",11L,request);assertThat(response.getReservationId()).isEqualTo(11L);assertThat(response.getCleanerEmail()).isEqualTo("cleaner@example.com");assertThat(cleaner.getRating()).isEqualTo(4.5);verify(cleaners).save(cleaner);}
- @Test void rejectsReviewBeforeCompletion(){ReviewRepository reviews=mock(ReviewRepository.class);ReservationRepository reservations=mock(ReservationRepository.class);CleanerRepository cleaners=mock(CleanerRepository.class);when(reservations.findLockedById(11L)).thenReturn(Optional.of(reservation("SCHEDULED")));ReservationReviewRequest request=new ReservationReviewRequest();request.setRating(5);assertThatThrownBy(()->new ReviewServiceImpl(reviews,reservations,cleaners).addReviewForReservation("client@example.com",11L,request)).isInstanceOf(IllegalStateException.class).hasMessageContaining("completed");}
- private Reservation reservation(String status){Reservation r=new Reservation();r.setId(11L);r.setClientEmail("client@example.com");r.setCleanerEmail("cleaner@example.com");r.setStatus(status);return r;}
+    @Test void reviewRequiresCompletedOwnedReservationAndUpdatesCleanerRating() {
+        ReviewRepository reviews=mock(ReviewRepository.class);ReservationRepository reservations=mock(ReservationRepository.class);CleanerRepository cleaners=mock(CleanerRepository.class);Reservation reservation=reservation("COMPLETED");Cleaner cleaner=new Cleaner();cleaner.setUserId(22L);cleaner.setEmail("cleaner@example.com");when(reservations.findLockedById(11L)).thenReturn(Optional.of(reservation));when(reviews.existsByReservationId(11L)).thenReturn(false);when(reviews.save(any(Review.class))).thenAnswer(i->{Review r=i.getArgument(0);r.setId(5L);return r;});when(reviews.averageRating(22L)).thenReturn(4.5);when(cleaners.findFirstByUserId(22L)).thenReturn(Optional.of(cleaner));ReservationReviewRequest request=new ReservationReviewRequest();request.setRating(5);request.setComment("Muy bien");var response=new ReviewServiceImpl(reviews,reservations,cleaners).addReviewForReservation(11L,"client@example.com",11L,request);assertThat(response.getReservationId()).isEqualTo(11L);assertThat(response.getCleanerEmail()).isEqualTo("cleaner@example.com");assertThat(cleaner.getRating()).isEqualTo(4.5);verify(cleaners).save(cleaner);
+    }
+
+    @Test void rejectsReviewBeforeCompletion() {
+        ReviewRepository reviews=mock(ReviewRepository.class);ReservationRepository reservations=mock(ReservationRepository.class);CleanerRepository cleaners=mock(CleanerRepository.class);when(reservations.findLockedById(11L)).thenReturn(Optional.of(reservation("SCHEDULED")));ReservationReviewRequest request=new ReservationReviewRequest();request.setRating(5);assertThatThrownBy(()->new ReviewServiceImpl(reviews,reservations,cleaners).addReviewForReservation(11L,"client@example.com",11L,request)).isInstanceOf(IllegalStateException.class).hasMessageContaining("completed");
+    }
+
+    private Reservation reservation(String status){Reservation r=new Reservation();r.setId(11L);r.setClientId(11L);r.setClientEmail("client@example.com");r.setCleanerId(22L);r.setCleanerEmail("cleaner@example.com");r.setStatus(status);return r;}
 }

@@ -9,6 +9,6 @@ import java.util.List;
 
 public interface CleanerAvailabilityService {
     List<AvailabilitySlotResponse> list(String cleanerEmail);
-    List<AvailabilitySlotResponse> replace(String cleanerEmail, List<AvailabilitySlotRequest> slots);
+    List<AvailabilitySlotResponse> replace(Long cleanerId, String cleanerEmail, List<AvailabilitySlotRequest> slots);
     List<CleanerDto> findAvailable(Instant startAt, int durationMinutes);
 }

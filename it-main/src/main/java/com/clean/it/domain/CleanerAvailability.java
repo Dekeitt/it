@@ -15,13 +15,16 @@ import java.time.LocalTime;
 
 @Entity
 @Table(name = "cleaner_availability", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_cleaner_availability_slot",
-                columnNames = {"cleaner_email", "day_of_week", "start_time", "end_time", "zone_id"})
+        @UniqueConstraint(name = "uk_cleaner_availability_slot_user",
+                columnNames = {"cleaner_id", "day_of_week", "start_time", "end_time", "zone_id"})
 })
 public class CleanerAvailability {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "cleaner_id", nullable = false)
+    private Long cleanerId;
 
     @Column(name = "cleaner_email", nullable = false)
     private String cleanerEmail;
@@ -41,6 +44,8 @@ public class CleanerAvailability {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public Long getCleanerId() { return cleanerId; }
+    public void setCleanerId(Long cleanerId) { this.cleanerId = cleanerId; }
     public String getCleanerEmail() { return cleanerEmail; }
     public void setCleanerEmail(String cleanerEmail) { this.cleanerEmail = cleanerEmail; }
     public DayOfWeek getDayOfWeek() { return dayOfWeek; }

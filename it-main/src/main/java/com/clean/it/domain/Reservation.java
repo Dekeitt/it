@@ -15,8 +15,14 @@ public class Reservation {
     @Column(name = "job_id", nullable = false)
     private Long jobId;
 
+    @Column(name = "client_id", nullable = false)
+    private Long clientId;
+
     @Column(name = "client_email", nullable = false)
     private String clientEmail;
+
+    @Column(name = "cleaner_id", nullable = false)
+    private Long cleanerId;
 
     @Column(name = "cleaner_email", nullable = false)
     private String cleanerEmail;
@@ -51,8 +57,12 @@ public class Reservation {
     public void setId(Long id) { this.id = id; }
     public Long getJobId() { return jobId; }
     public void setJobId(Long jobId) { this.jobId = jobId; }
+    public Long getClientId() { return clientId; }
+    public void setClientId(Long clientId) { this.clientId = clientId; }
     public String getClientEmail() { return clientEmail; }
     public void setClientEmail(String clientEmail) { this.clientEmail = clientEmail; }
+    public Long getCleanerId() { return cleanerId; }
+    public void setCleanerId(Long cleanerId) { this.cleanerId = cleanerId; }
     public String getCleanerEmail() { return cleanerEmail; }
     public void setCleanerEmail(String cleanerEmail) { this.cleanerEmail = cleanerEmail; }
     public Instant getStartAt() { return startAt; }

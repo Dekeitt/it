@@ -34,9 +34,10 @@ public class JobServiceImpl implements JobService {
 
     @Override
     @Transactional
-    public JobResponse createJob(String clientEmail, CreateJobRequest req) {
+    public JobResponse createJob(Long clientId, String clientEmail, CreateJobRequest req) {
         try {
             Job job = new Job();
+            job.setClientId(clientId);
             job.setClientEmail(clientEmail);
             job.setTitle(req.getTitle() != null && !req.getTitle().isBlank() ? req.getTitle() : null);
             job.setDescription(req.getDescription());
@@ -44,16 +45,14 @@ public class JobServiceImpl implements JobService {
             job.setStatus(JobStatus.OPEN);
             Job saved = jobRepository.save(job);
             JobResponse resp = toDto(saved);
-            // notify via websocket that a new job is available
             try {
                 notificationService.publishJobUpdate(resp);
             } catch (Exception e) {
-                // Log notification failures but do not prevent job creation
                 log.error("Failed to publish job update for job id={}", resp.getId(), e);
             }
             return resp;
         } catch (Exception ex) {
-            log.error("Error creating job for client={}: {}", clientEmail, ex.getMessage(), ex);
+            log.error("Error creating job for clientId={}: {}", clientId, ex.getMessage(), ex);
             throw ex;
         }
     }
@@ -65,7 +64,7 @@ public class JobServiceImpl implements JobService {
 
     @Override
     @Transactional
-    public JobResponse acceptJob(String cleanerEmail, Long jobId) {
+    public JobResponse acceptJob(Long cleanerId, String cleanerEmail, Long jobId) {
         String lockKey = "job:lock:" + jobId;
         String token = null;
         try {
@@ -78,12 +77,12 @@ public class JobServiceImpl implements JobService {
             if (job.getStatus() != JobStatus.OPEN) {
                 throw new IllegalStateException("Job is not open");
             }
-            // check cleaner has no active jobs
-            boolean hasActive = jobRepository.existsByCleanerEmailAndStatusIn(cleanerEmail, List.of(JobStatus.ACCEPTED, JobStatus.IN_PROGRESS));
+            boolean hasActive = jobRepository.existsByCleanerIdAndStatusIn(cleanerId, List.of(JobStatus.ACCEPTED, JobStatus.IN_PROGRESS));
             if (hasActive) {
                 throw new IllegalStateException("Cleaner already has an active job");
             }
 
+            job.setCleanerId(cleanerId);
             job.setCleanerEmail(cleanerEmail);
             job.setStatus(JobStatus.ACCEPTED);
             Job saved = jobRepository.save(job);
@@ -91,12 +90,11 @@ public class JobServiceImpl implements JobService {
             try {
                 notificationService.publishJobUpdate(resp);
             } catch (Exception e) {
-                // Log notification failures but still return success to caller
                 log.error("Failed to publish job update for accepted job id={}", resp.getId(), e);
             }
             return resp;
         } catch (Exception ex) {
-            log.error("Error accepting job id={} by cleaner={}: {}", jobId, cleanerEmail, ex.getMessage(), ex);
+            log.error("Error accepting job id={} by cleanerId={}: {}", jobId, cleanerId, ex.getMessage(), ex);
             throw ex;
         } finally {
             try {

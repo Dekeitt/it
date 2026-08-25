@@ -1,5 +1,6 @@
 package com.clean.it.service.impl;
 
+import com.clean.it.domain.Cleaner;
 import com.clean.it.domain.Reservation;
 import com.clean.it.domain.Review;
 import com.clean.it.dto.AppDtos.ReservationReviewRequest;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class ReviewServiceImpl implements ReviewService {
@@ -30,11 +32,11 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     @Transactional
-    public ReviewResponse addReviewForReservation(String clientEmail, Long reservationId,
+    public ReviewResponse addReviewForReservation(Long clientId, String clientEmail, Long reservationId,
                                                   ReservationReviewRequest request) {
         Reservation reservation = reservationRepository.findLockedById(reservationId)
                 .orElseThrow(() -> new IllegalArgumentException("Reservation not found"));
-        if (reservation.getClientEmail() == null || !reservation.getClientEmail().equalsIgnoreCase(clientEmail)) {
+        if (!Objects.equals(reservation.getClientId(), clientId)) {
             throw new AccessDeniedException("Only the reservation client can review it");
         }
         if (!"COMPLETED".equalsIgnoreCase(reservation.getStatus())) {
@@ -46,25 +48,29 @@ public class ReviewServiceImpl implements ReviewService {
 
         Review review = new Review();
         review.setReservationId(reservationId);
+        review.setCleanerId(reservation.getCleanerId());
         review.setCleanerEmail(reservation.getCleanerEmail());
+        review.setClientId(clientId);
         review.setClientEmail(clientEmail);
         review.setRating(request.getRating());
         review.setComment(request.getComment());
         Review saved = reviewRepository.save(review);
-        refreshCleanerRating(reservation.getCleanerEmail());
+        refreshCleanerRating(reservation.getCleanerId());
         return toDto(saved);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ReviewResponse> listReviews(String cleanerEmail) {
-        return reviewRepository.findByCleanerEmailOrderByCreatedAtDesc(cleanerEmail)
+        Cleaner cleaner = cleanerRepository.findByEmailIgnoreCase(cleanerEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Cleaner profile not found"));
+        return reviewRepository.findByCleanerIdOrderByCreatedAtDesc(cleaner.getUserId())
                 .stream().map(this::toDto).toList();
     }
 
-    private void refreshCleanerRating(String cleanerEmail) {
-        Double average = reviewRepository.averageRating(cleanerEmail);
-        cleanerRepository.findByEmailIgnoreCase(cleanerEmail).ifPresent(cleaner -> {
+    private void refreshCleanerRating(Long cleanerId) {
+        Double average = reviewRepository.averageRating(cleanerId);
+        cleanerRepository.findFirstByUserId(cleanerId).ifPresent(cleaner -> {
             cleaner.setRating(average == null ? 0.0 : Math.round(average * 100.0) / 100.0);
             cleanerRepository.save(cleaner);
         });

@@ -1,5 +1,6 @@
 package com.clean.it.controller;
 
+import com.clean.it.domain.UserAccount;
 import com.clean.it.dto.JobDtos.CreateJobRequest;
 import com.clean.it.dto.JobDtos.JobResponse;
 import com.clean.it.security.AuthenticatedUser;
@@ -37,7 +38,8 @@ public class JobController {
     @Operation(summary = "Crear un job")
     public ResponseEntity<JobResponse> createJob(Authentication authentication,
                                                  @Valid @RequestBody CreateJobRequest req) {
-        return ResponseEntity.ok(jobService.createJob(authenticatedUser.email(authentication), req));
+        UserAccount account = authenticatedUser.account(authentication);
+        return ResponseEntity.ok(jobService.createJob(account.getId(), account.getEmail(), req));
     }
 
     @GetMapping("/open")
@@ -51,6 +53,7 @@ public class JobController {
     @PreAuthorize("hasRole('CLEANER')")
     @Operation(summary = "Aceptar un job")
     public ResponseEntity<JobResponse> acceptJob(Authentication authentication, @PathVariable("id") Long id) {
-        return ResponseEntity.ok(jobService.acceptJob(authenticatedUser.email(authentication), id));
+        UserAccount account = authenticatedUser.account(authentication);
+        return ResponseEntity.ok(jobService.acceptJob(account.getId(), account.getEmail(), id));
     }
 }

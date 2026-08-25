@@ -1,5 +1,6 @@
 package com.clean.it.controller;
 
+import com.clean.it.domain.UserAccount;
 import com.clean.it.dto.AppDtos.ReservationRequest;
 import com.clean.it.dto.AppDtos.ReservationRescheduleRequest;
 import com.clean.it.dto.AppDtos.ReservationResponse;
@@ -45,26 +46,27 @@ public class ReservationController {
     @Operation(summary = "Crear una reserva")
     public ResponseEntity<ReservationResponse> reserve(Authentication authentication,
                                                        @Valid @RequestBody ReservationRequest request) {
-        return ResponseEntity.ok(reservationService.reserve(authenticatedUser.email(authentication), request));
+        UserAccount account = authenticatedUser.account(authentication);
+        return ResponseEntity.ok(reservationService.reserve(account.getId(), account.getEmail(), request));
     }
 
     @GetMapping
     @Operation(summary = "Listar reservas del usuario autenticado")
     public ResponseEntity<List<ReservationResponse>> list(Authentication authentication) {
-        return ResponseEntity.ok(reservationService.listForUser(authenticatedUser.email(authentication)));
+        return ResponseEntity.ok(reservationService.listForUser(authenticatedUser.id(authentication)));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Obtener una reserva visible para el usuario")
     public ResponseEntity<ReservationResponse> get(Authentication authentication, @PathVariable Long id) {
-        return ResponseEntity.ok(reservationService.getForUser(authenticatedUser.email(authentication), id));
+        return ResponseEntity.ok(reservationService.getForUser(authenticatedUser.id(authentication), id));
     }
 
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasRole('CLIENT')")
     @Operation(summary = "Cancelar una reserva y cancelar/reembolsar su pago si existe")
     public ResponseEntity<ReservationResponse> cancel(Authentication authentication, @PathVariable Long id) {
-        return ResponseEntity.ok(reservationService.cancel(authenticatedUser.email(authentication), id));
+        return ResponseEntity.ok(reservationService.cancel(authenticatedUser.id(authentication), id));
     }
 
     @PostMapping("/{id}/reschedule")
@@ -73,21 +75,21 @@ public class ReservationController {
     public ResponseEntity<ReservationResponse> reschedule(Authentication authentication,
                                                           @PathVariable Long id,
                                                           @Valid @RequestBody ReservationRescheduleRequest request) {
-        return ResponseEntity.ok(reservationService.reschedule(authenticatedUser.email(authentication), id, request));
+        return ResponseEntity.ok(reservationService.reschedule(authenticatedUser.id(authentication), id, request));
     }
 
     @PostMapping("/{id}/start")
     @PreAuthorize("hasRole('CLEANER')")
     @Operation(summary = "Marcar una reserva como iniciada")
     public ResponseEntity<ReservationResponse> start(Authentication authentication, @PathVariable Long id) {
-        return ResponseEntity.ok(reservationService.start(authenticatedUser.email(authentication), id));
+        return ResponseEntity.ok(reservationService.start(authenticatedUser.id(authentication), id));
     }
 
     @PostMapping("/{id}/complete")
     @PreAuthorize("hasRole('CLEANER')")
     @Operation(summary = "Marcar una reserva como completada")
     public ResponseEntity<ReservationResponse> complete(Authentication authentication, @PathVariable Long id) {
-        return ResponseEntity.ok(reservationService.complete(authenticatedUser.email(authentication), id));
+        return ResponseEntity.ok(reservationService.complete(authenticatedUser.id(authentication), id));
     }
 
     @PostMapping("/{id}/review")
@@ -96,7 +98,7 @@ public class ReservationController {
     public ResponseEntity<ReviewResponse> review(Authentication authentication,
                                                  @PathVariable Long id,
                                                  @Valid @RequestBody ReservationReviewRequest request) {
-        return ResponseEntity.ok(reviewService.addReviewForReservation(
-                authenticatedUser.email(authentication), id, request));
+        UserAccount account = authenticatedUser.account(authentication);
+        return ResponseEntity.ok(reviewService.addReviewForReservation(account.getId(), account.getEmail(), id, request));
     }
 }

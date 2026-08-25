@@ -12,32 +12,30 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     Optional<Payment> findByStripePaymentIntentId(String stripePaymentIntentId);
     Optional<Payment> findFirstByReservationId(Long reservationId);
 
-
     @Query("""
             select p from Payment p, Reservation r
             where p.reservationId = r.id
               and p.id = :paymentId
-              and (lower(r.clientEmail) = lower(:email) or lower(r.cleanerEmail) = lower(:email))
+              and (r.clientId = :userId or r.cleanerId = :userId)
             """)
     Optional<Payment> findByIdVisibleToUser(@Param("paymentId") Long paymentId,
-                                            @Param("email") String email);
+                                            @Param("userId") Long userId);
 
     @Query("""
             select p from Payment p, Reservation r
             where p.reservationId = r.id
-              and (lower(r.clientEmail) = lower(:email) or lower(r.cleanerEmail) = lower(:email))
+              and (r.clientId = :userId or r.cleanerId = :userId)
             order by p.createdAt desc
             """)
-    List<Payment> findVisibleToUser(@Param("email") String email);
+    List<Payment> findVisibleToUser(@Param("userId") Long userId);
 
     @Query("""
             select p from Payment p, Reservation r
             where p.reservationId = r.id
               and r.id = :reservationId
-              and (lower(r.clientEmail) = lower(:email) or lower(r.cleanerEmail) = lower(:email))
+              and (r.clientId = :userId or r.cleanerId = :userId)
             order by p.createdAt desc
             """)
     List<Payment> findByReservationIdVisibleToUser(@Param("reservationId") Long reservationId,
-                                                   @Param("email") String email);
+                                                   @Param("userId") Long userId);
 }
-

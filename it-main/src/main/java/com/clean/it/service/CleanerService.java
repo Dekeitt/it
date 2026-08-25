@@ -5,6 +5,5 @@ import java.util.List;
 
 public interface CleanerService {
     List<CleanerDto> listCleaners();
-    CleanerDto createCleaner(CleanerDto dto);
+    CleanerDto createCleaner(Long userId, String email, CleanerDto dto);
 }
-
