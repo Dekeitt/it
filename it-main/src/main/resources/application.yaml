@@ -45,6 +45,18 @@ stripe:
   secret-key: ${STRIPE_SECRET_KEY:}
   publishable-key: ${STRIPE_PUBLISHABLE_KEY:}
   webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+  connect-webhook-secret: ${STRIPE_CONNECT_WEBHOOK_SECRET:}
+
+marketplace:
+  connect:
+    enabled: ${CONNECT_ENABLED:false}
+    platform-fee-bps: ${CONNECT_PLATFORM_FEE_BPS:0}
+    allowed-countries: ${CONNECT_ALLOWED_COUNTRIES:}
+    refund-reverse-transfer: ${CONNECT_REFUND_REVERSE_TRANSFER:unset}
+    refund-application-fee: ${CONNECT_REFUND_APPLICATION_FEE:unset}
+    on-behalf-of: ${CONNECT_ON_BEHALF_OF:false}
+    refresh-url: ${CONNECT_REFRESH_URL:}
+    return-url: ${CONNECT_RETURN_URL:}
 
 logging:
   pattern:

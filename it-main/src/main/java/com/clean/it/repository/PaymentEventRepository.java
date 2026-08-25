@@ -7,9 +7,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.List;
 
 public interface PaymentEventRepository extends JpaRepository<PaymentEvent, Long> {
-
     @Modifying
     @Query(value = """
             INSERT INTO payment_events(event_id, type, status, event_created_at, claimed_at)
@@ -32,6 +32,12 @@ public interface PaymentEventRepository extends JpaRepository<PaymentEvent, Long
               @Param("staleBefore") Instant staleBefore);
 
     @Modifying
+    @Query(value = "UPDATE payment_events SET payment_id=:paymentId, stripe_payment_intent_id=:intentId WHERE event_id=:eventId AND status='PROCESSING'", nativeQuery = true)
+    int linkPayment(@Param("eventId") String eventId,@Param("paymentId") Long paymentId,@Param("intentId") String intentId);
+
+    List<PaymentEvent> findByPaymentIdOrderByEventCreatedAtAsc(Long paymentId);
+
+    @Modifying
     @Query(value = """
             UPDATE payment_events
                SET status = 'PROCESSED', processed_at = :processedAt, failure_reason = NULL
@@ -47,4 +53,3 @@ public interface PaymentEventRepository extends JpaRepository<PaymentEvent, Long
             """, nativeQuery = true)
     int markFailed(@Param("eventId") String eventId, @Param("failureReason") String failureReason);
 }
-

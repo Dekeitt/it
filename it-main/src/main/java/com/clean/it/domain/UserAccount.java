@@ -38,6 +38,15 @@ public class UserAccount {
     @Column(length = 1000)
     private String roles;
 
+    @Column(name = "blocked_at")
+    private Instant blockedAt;
+
+    @Column(name = "blocked_reason", length = 1000)
+    private String blockedReason;
+
+    @Column(name = "blocked_by_user_id")
+    private Long blockedByUserId;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -68,6 +77,12 @@ public class UserAccount {
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public String getRoles() { return roles; }
     public void setRoles(String roles) { this.roles = roles; }
+    public Instant getBlockedAt() { return blockedAt; }
+    public void setBlockedAt(Instant blockedAt) { this.blockedAt = blockedAt; }
+    public String getBlockedReason() { return blockedReason; }
+    public void setBlockedReason(String blockedReason) { this.blockedReason = blockedReason; }
+    public Long getBlockedByUserId() { return blockedByUserId; }
+    public void setBlockedByUserId(Long blockedByUserId) { this.blockedByUserId = blockedByUserId; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }
