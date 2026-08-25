@@ -43,7 +43,6 @@ public class BookingController {
     }
 
     @GetMapping("/catalog")
-    @PreAuthorize("hasRole('CLIENT')")
     @Operation(summary = "Consultar catálogo de servicios reservables")
     public ResponseEntity<List<ServiceTypeResponse>> catalog() {
         return ResponseEntity.ok(bookingService.catalog());
