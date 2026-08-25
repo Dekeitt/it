@@ -26,6 +26,38 @@ BACKEND_URL=http://${{backend.RAILWAY_PRIVATE_DOMAIN}}:${{backend.PORT}}
 
 No configures `VITE_API_BASE_URL` en producción: el navegador debe llamar a `/api` sobre el mismo dominio del frontend. Caddy reenvía esas peticiones al backend por la red privada de Railway.
 
+## OIDC + PKCE
+
+El login web usa Authorization Code + PKCE y discovery OIDC estándar. Configura en el servicio frontend las variables de build:
+
+```text
+VITE_OIDC_AUTHORITY=https://TU_ISSUER_OIDC
+VITE_OIDC_CLIENT_ID=TU_CLIENT_ID_PUBLICO
+VITE_OIDC_SCOPE=openid profile email
+VITE_OIDC_AUDIENCE=clean-it-api
+```
+
+El Dockerfile declara estas variables como `ARG` para que Vite las incluya durante el build. No pongas ningún client secret en el frontend: una SPA con PKCE es un cliente público.
+
+En el proveedor OIDC registra:
+
+```text
+Allowed callback / redirect URI: https://TU_DOMINIO/auth/callback
+Allowed logout URI:             https://TU_DOMINIO/account
+Allowed web origin:              https://TU_DOMINIO
+```
+
+El access token que emita el proveedor debe llevar la audiencia configurada por el backend y claims `role` o `roles` con `CLIENT` y/o `CLEANER` según corresponda.
+
+En el backend configura el mismo issuer/audience y el JWK Set del proveedor:
+
+```text
+JWT_ISSUER=https://TU_ISSUER_OIDC
+JWT_AUDIENCE=clean-it-api
+JWT_JWK_SET_URI=https://TU_ISSUER_OIDC/RUTA_JWKS
+JWT_SECRET=
+```
+
 ## Resultado
 
 ```text
