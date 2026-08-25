@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -42,10 +43,10 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public PaymentResponse createPaymentIntent(String userEmail, PaymentRequest req) {
+    public PaymentResponse createPaymentIntent(Long userId, PaymentRequest req) {
         Reservation reservation = reservationRepository.findLockedById(req.getReservationId())
                 .orElseThrow(() -> new IllegalArgumentException("Reservation not found"));
-        if (reservation.getClientEmail() == null || !reservation.getClientEmail().equalsIgnoreCase(userEmail)) {
+        if (!Objects.equals(reservation.getClientId(), userId)) {
             throw new AccessDeniedException("Only the reservation client can create its payment");
         }
         if ("CANCELLED".equalsIgnoreCase(reservation.getStatus())) {
