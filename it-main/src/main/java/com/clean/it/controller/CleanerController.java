@@ -4,7 +4,12 @@ import com.clean.it.domain.UserAccount;
 import com.clean.it.dto.AppDtos.AvailabilitySlotRequest;
 import com.clean.it.dto.AppDtos.AvailabilitySlotResponse;
 import com.clean.it.dto.AppDtos.CleanerDto;
+import com.clean.it.dto.BookingDtos.CleanerOfferingRequest;
+import com.clean.it.dto.BookingDtos.CleanerOfferingResponse;
+import com.clean.it.dto.BookingDtos.ServiceAreaRequest;
+import com.clean.it.dto.BookingDtos.ServiceAreaResponse;
 import com.clean.it.security.AuthenticatedUser;
+import com.clean.it.service.BookingService;
 import com.clean.it.service.CleanerAvailabilityService;
 import com.clean.it.service.CleanerService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,19 +36,22 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/cleaners")
-@Tag(name = "Cleaners", description = "Gestión y disponibilidad de cleaners")
+@Tag(name = "Cleaners", description = "Gestión, servicios, cobertura y disponibilidad de cleaners")
 @Validated
 public class CleanerController {
 
     private final CleanerService cleanerService;
     private final CleanerAvailabilityService availabilityService;
+    private final BookingService bookingService;
     private final AuthenticatedUser authenticatedUser;
 
     public CleanerController(CleanerService cleanerService,
                              CleanerAvailabilityService availabilityService,
+                             BookingService bookingService,
                              AuthenticatedUser authenticatedUser) {
         this.cleanerService = cleanerService;
         this.availabilityService = availabilityService;
+        this.bookingService = bookingService;
         this.authenticatedUser = authenticatedUser;
     }
 
@@ -67,6 +75,18 @@ public class CleanerController {
         return ResponseEntity.ok(availabilityService.list(email));
     }
 
+    @GetMapping("/{email}/services")
+    @Operation(summary = "Consultar servicios y tarifas de un cleaner")
+    public ResponseEntity<List<CleanerOfferingResponse>> services(@PathVariable String email) {
+        return ResponseEntity.ok(bookingService.offeringsForCleanerEmail(email));
+    }
+
+    @GetMapping("/{email}/service-areas")
+    @Operation(summary = "Consultar zonas de servicio de un cleaner")
+    public ResponseEntity<List<ServiceAreaResponse>> serviceAreas(@PathVariable String email) {
+        return ResponseEntity.ok(bookingService.serviceAreasForCleanerEmail(email));
+    }
+
     @PutMapping("/me/availability")
     @PreAuthorize("hasRole('CLEANER')")
     @Operation(summary = "Reemplazar la disponibilidad recurrente del cleaner autenticado")
@@ -75,6 +95,24 @@ public class CleanerController {
             @Valid @RequestBody List<AvailabilitySlotRequest> slots) {
         UserAccount account = authenticatedUser.account(authentication);
         return ResponseEntity.ok(availabilityService.replace(account.getId(), account.getEmail(), slots));
+    }
+
+    @PutMapping("/me/services")
+    @PreAuthorize("hasRole('CLEANER')")
+    @Operation(summary = "Reemplazar servicios y tarifas del cleaner autenticado")
+    public ResponseEntity<List<CleanerOfferingResponse>> replaceServices(
+            Authentication authentication,
+            @Valid @RequestBody List<CleanerOfferingRequest> requests) {
+        return ResponseEntity.ok(bookingService.replaceOfferings(authenticatedUser.id(authentication), requests));
+    }
+
+    @PutMapping("/me/service-areas")
+    @PreAuthorize("hasRole('CLEANER')")
+    @Operation(summary = "Reemplazar zonas de servicio del cleaner autenticado")
+    public ResponseEntity<List<ServiceAreaResponse>> replaceServiceAreas(
+            Authentication authentication,
+            @Valid @RequestBody List<ServiceAreaRequest> requests) {
+        return ResponseEntity.ok(bookingService.replaceServiceAreas(authenticatedUser.id(authentication), requests));
     }
 
     @GetMapping("/available")
