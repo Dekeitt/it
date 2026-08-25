@@ -18,6 +18,6 @@ public interface JobRepository extends JpaRepository<Job, Long> {
     @Query("select j from Job j where j.id = :id")
     Optional<Job> findByIdForUpdate(@Param("id") Long id);
 
-    @Query("select count(j) > 0 from Job j where j.cleanerEmail = :cleanerEmail and j.status in :active")
-    boolean existsByCleanerEmailAndStatusIn(@Param("cleanerEmail") String cleanerEmail, @Param("active") List<JobStatus> active);
+    @Query("select count(j) > 0 from Job j where j.cleanerId = :cleanerId and j.status in :active")
+    boolean existsByCleanerIdAndStatusIn(@Param("cleanerId") Long cleanerId, @Param("active") List<JobStatus> active);
 }
