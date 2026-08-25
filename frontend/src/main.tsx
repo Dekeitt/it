@@ -5,6 +5,7 @@ import { RouterProvider } from '@tanstack/react-router';
 import { AuthProvider } from './auth';
 import { router } from './app/router';
 import './styles.css';
+import './booking.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {
