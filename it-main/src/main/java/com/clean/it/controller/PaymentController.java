@@ -43,14 +43,14 @@ public class PaymentController {
     @Operation(summary = "Crear o reutilizar un intent de pago")
     public ResponseEntity<PaymentResponse> createIntent(Authentication authentication,
                                                         @Valid @RequestBody PaymentRequest req) {
-        return ResponseEntity.ok(paymentService.createPaymentIntent(authenticatedUser.email(authentication), req));
+        return ResponseEntity.ok(paymentService.createPaymentIntent(authenticatedUser.id(authentication), req));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Obtener un pago por ID")
     public ResponseEntity<PaymentSummary> getPayment(Authentication authentication,
                                                      @PathVariable("id") Long id) {
-        return paymentStore.findByIdVisibleToUser(id, authenticatedUser.email(authentication))
+        return paymentStore.findByIdVisibleToUser(id, authenticatedUser.id(authentication))
                 .map(this::toSummary)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
@@ -61,10 +61,10 @@ public class PaymentController {
     public ResponseEntity<List<PaymentSummary>> findByReservation(
             Authentication authentication,
             @RequestParam(value = "reservationId", required = false) Long reservationId) {
-        String email = authenticatedUser.email(authentication);
+        Long userId = authenticatedUser.id(authentication);
         List<Payment> payments = reservationId == null
-                ? paymentStore.findVisibleToUser(email)
-                : paymentStore.findByReservationIdVisibleToUser(reservationId, email);
+                ? paymentStore.findVisibleToUser(userId)
+                : paymentStore.findByReservationIdVisibleToUser(reservationId, userId);
         return ResponseEntity.ok(payments.stream().map(this::toSummary).toList());
     }
 
