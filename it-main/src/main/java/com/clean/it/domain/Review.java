@@ -36,6 +36,18 @@ public class Review {
     @Column(length = 2000)
     private String comment;
 
+    @Column(name = "moderation_status", nullable = false, length = 32)
+    private String moderationStatus = "VISIBLE";
+
+    @Column(name = "moderated_at")
+    private Instant moderatedAt;
+
+    @Column(name = "moderated_by_user_id")
+    private Long moderatedByUserId;
+
+    @Column(name = "moderation_reason", length = 1000)
+    private String moderationReason;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
@@ -55,6 +67,14 @@ public class Review {
     public void setRating(Integer rating) { this.rating = rating; }
     public String getComment() { return comment; }
     public void setComment(String comment) { this.comment = comment; }
+    public String getModerationStatus() { return moderationStatus; }
+    public void setModerationStatus(String moderationStatus) { this.moderationStatus = moderationStatus; }
+    public Instant getModeratedAt() { return moderatedAt; }
+    public void setModeratedAt(Instant moderatedAt) { this.moderatedAt = moderatedAt; }
+    public Long getModeratedByUserId() { return moderatedByUserId; }
+    public void setModeratedByUserId(Long moderatedByUserId) { this.moderatedByUserId = moderatedByUserId; }
+    public String getModerationReason() { return moderationReason; }
+    public void setModerationReason(String moderationReason) { this.moderationReason = moderationReason; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }
