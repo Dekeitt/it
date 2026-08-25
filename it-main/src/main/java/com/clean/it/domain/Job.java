@@ -29,6 +29,9 @@ public class Job {
     @Column(nullable = false)
     private JobStatus status;
 
+    @Column(nullable = false, length = 32)
+    private String source = "OPEN_MARKET";
+
     @Column(columnDefinition = "TEXT")
     private String description;
 
@@ -65,6 +68,8 @@ public class Job {
     public void setCleanerEmail(String cleanerEmail) { this.cleanerEmail = cleanerEmail; }
     public JobStatus getStatus() { return status; }
     public void setStatus(JobStatus status) { this.status = status; }
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
     public Long getPriceCents() { return priceCents; }
