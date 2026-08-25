@@ -2,6 +2,7 @@ import { createRootRoute, createRoute, createRouter } from '@tanstack/react-rout
 import { Shell } from './Shell';
 import { HomePage } from '../features/home/HomePage';
 import { MarketplacePage } from '../features/marketplace/MarketplacePage';
+import { BookingPage } from '../features/booking/BookingPage';
 import { JobsPage } from '../features/jobs/JobsPage';
 import { ReservationsPage } from '../features/reservations/ReservationsPage';
 import { CheckoutPage } from '../features/reservations/CheckoutPage';
@@ -13,6 +14,7 @@ import { AuthCallbackPage } from '../features/account/AuthCallbackPage';
 const rootRoute = createRootRoute({ component: Shell });
 const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: HomePage });
 const marketplaceRoute = createRoute({ getParentRoute: () => rootRoute, path: '/marketplace', component: MarketplacePage });
+const bookingRoute = createRoute({ getParentRoute: () => rootRoute, path: '/book', component: BookingPage });
 const jobsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/jobs', component: JobsPage });
 const reservationsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/reservations', component: ReservationsPage });
 const checkoutRoute = createRoute({ getParentRoute: () => rootRoute, path: '/checkout/$reservationId', component: CheckoutPage });
@@ -22,7 +24,7 @@ const accountRoute = createRoute({ getParentRoute: () => rootRoute, path: '/acco
 const authCallbackRoute = createRoute({ getParentRoute: () => rootRoute, path: '/auth/callback', component: AuthCallbackPage });
 
 const routeTree = rootRoute.addChildren([
-  homeRoute, marketplaceRoute, jobsRoute, reservationsRoute, checkoutRoute, paymentsRoute, reviewsRoute, accountRoute,
+  homeRoute, marketplaceRoute, bookingRoute, jobsRoute, reservationsRoute, checkoutRoute, paymentsRoute, reviewsRoute, accountRoute,
   authCallbackRoute,
 ]);
 

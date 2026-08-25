@@ -21,24 +21,36 @@ class MigrationPostgresTest {
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
 
     @Test
-    void migrationsRunAndEnforceStableIdentityReservationAndPaymentInvariants() throws Exception {
+    void migrationsRunAndEnforceStableIdentityReservationPaymentAndBookingInvariants() throws Exception {
         Flyway flyway = Flyway.configure()
                 .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
                 .locations("classpath:db/migration")
                 .load();
 
-        assertThat(flyway.migrate().migrationsExecuted).isGreaterThanOrEqualTo(4);
+        assertThat(flyway.migrate().migrationsExecuted).isGreaterThanOrEqualTo(5);
 
         try (Connection connection = DriverManager.getConnection(
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
+            assertThat(count(connection, "SELECT count(*) FROM service_types WHERE active = true")).isEqualTo(3);
             long clientId = insertUser(connection, "https://issuer.example/", "client-sub", "client@example.com");
             long cleanerId = insertUser(connection, "https://issuer.example/", "cleaner-sub", "cleaner@example.com");
             insertCleaner(connection, cleanerId, "cleaner@example.com");
+            long serviceTypeId = serviceTypeId(connection, "STANDARD");
+            insertOffering(connection, cleanerId, serviceTypeId, 1800);
+            assertThatThrownBy(() -> insertOffering(connection, cleanerId, serviceTypeId, 2000))
+                    .isInstanceOf(SQLException.class)
+                    .hasMessageContaining("uk_cleaner_service_offering");
+            insertServiceArea(connection, cleanerId, "ES", "28");
+            assertThatThrownBy(() -> insertServiceArea(connection, cleanerId, "ES", "28"))
+                    .isInstanceOf(SQLException.class)
+                    .hasMessageContaining("uk_cleaner_service_area");
+            long addressId = insertAddress(connection, clientId);
+            assertThat(addressId).isPositive();
+
             long jobId = insertJob(connection, clientId);
             long reservationId = insertReservation(connection, jobId, clientId, cleanerId, "cleaner@example.com",
                     "SCHEDULED", "2030-01-01 10:00:00+00", "2030-01-01 12:00:00+00");
 
-            // Changing the cleaner email does not change identity or overlap enforcement.
             updateUserEmail(connection, cleanerId, "cleaner+new@example.com");
             assertThatThrownBy(() -> insertReservation(connection, jobId, clientId, cleanerId,
                     "cleaner+new@example.com", "SCHEDULED",
@@ -53,6 +65,41 @@ class MigrationPostgresTest {
             assertThatThrownBy(() -> insertPayment(connection, reservationId, "pi_test_2"))
                     .isInstanceOf(SQLException.class)
                     .hasMessageContaining("uk_payments_reservation");
+        }
+    }
+
+    private long count(Connection connection, String sql) throws SQLException {
+        try (var statement = connection.prepareStatement(sql); var result = statement.executeQuery()) {
+            result.next(); return result.getLong(1);
+        }
+    }
+
+    private long serviceTypeId(Connection connection, String code) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("SELECT id FROM service_types WHERE code = ?")) {
+            statement.setString(1, code);
+            try (var result = statement.executeQuery()) { result.next(); return result.getLong(1); }
+        }
+    }
+
+    private void insertOffering(Connection connection, long cleanerId, long serviceTypeId, long rate) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("INSERT INTO cleaner_service_offerings(cleaner_id, service_type_id, hourly_rate_cents, active) VALUES (?, ?, ?, true)")) {
+            statement.setLong(1, cleanerId); statement.setLong(2, serviceTypeId); statement.setLong(3, rate); statement.executeUpdate();
+        }
+    }
+
+    private void insertServiceArea(Connection connection, long cleanerId, String country, String prefix) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("INSERT INTO cleaner_service_areas(cleaner_id, country_code, postal_code_prefix) VALUES (?, ?, ?)")) {
+            statement.setLong(1, cleanerId); statement.setString(2, country); statement.setString(3, prefix); statement.executeUpdate();
+        }
+    }
+
+    private long insertAddress(Connection connection, long userId) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("""
+                INSERT INTO user_addresses(user_id, label, line1, postal_code, city, country_code)
+                VALUES (?, 'Casa', 'Calle Mayor 1', '28001', 'Madrid', 'ES') RETURNING id
+                """)) {
+            statement.setLong(1, userId);
+            try (var result = statement.executeQuery()) { result.next(); return result.getLong(1); }
         }
     }
 
