@@ -71,20 +71,21 @@ public class CleanerAvailabilityServiceImpl implements CleanerAvailabilityServic
     @Override
     @Transactional(readOnly = true)
     public List<CleanerDto> findAvailable(Instant startAt, int durationMinutes) {
-        if (durationMinutes < 30 || durationMinutes > 1440) {
-            throw new IllegalArgumentException("durationMinutes must be between 30 and 1440");
-        }
-        Instant endAt = startAt.plus(Duration.ofMinutes(durationMinutes));
+        validateDuration(durationMinutes);
         List<CleanerDto> result = new ArrayList<>();
         for (Cleaner cleaner : cleanerRepository.findAll()) {
-            if (isAvailable(cleaner.getUserId(), startAt, endAt)) {
+            if (isAvailable(cleaner.getUserId(), startAt, durationMinutes)) {
                 result.add(toDto(cleaner));
             }
         }
         return result;
     }
 
-    private boolean isAvailable(Long cleanerId, Instant startAt, Instant endAt) {
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isAvailable(Long cleanerId, Instant startAt, int durationMinutes) {
+        validateDuration(durationMinutes);
+        Instant endAt = startAt.plus(Duration.ofMinutes(durationMinutes));
         if (reservationRepository.existsActiveOverlap(cleanerId, startAt, endAt)) {
             return false;
         }
@@ -92,12 +93,8 @@ public class CleanerAvailabilityServiceImpl implements CleanerAvailabilityServic
             ZoneId zone = zone(slot.getZoneId());
             ZonedDateTime localStart = startAt.atZone(zone);
             ZonedDateTime localEnd = endAt.atZone(zone);
-            if (!localStart.toLocalDate().equals(localEnd.toLocalDate())) {
-                continue;
-            }
-            if (localStart.getDayOfWeek() != slot.getDayOfWeek()) {
-                continue;
-            }
+            if (!localStart.toLocalDate().equals(localEnd.toLocalDate())) continue;
+            if (localStart.getDayOfWeek() != slot.getDayOfWeek()) continue;
             LocalTime requestedStart = localStart.toLocalTime();
             LocalTime requestedEnd = localEnd.toLocalTime();
             if (!requestedStart.isBefore(slot.getStartTime()) && !requestedEnd.isAfter(slot.getEndTime())) {
@@ -105,6 +102,12 @@ public class CleanerAvailabilityServiceImpl implements CleanerAvailabilityServic
             }
         }
         return false;
+    }
+
+    private void validateDuration(int durationMinutes) {
+        if (durationMinutes < 30 || durationMinutes > 1440) {
+            throw new IllegalArgumentException("durationMinutes must be between 30 and 1440");
+        }
     }
 
     private void validate(List<AvailabilitySlotRequest> slots) {
