@@ -12,7 +12,13 @@ import java.util.Optional;
 public interface CleanerRepository extends JpaRepository<Cleaner, Long> {
     Optional<Cleaner> findByEmail(String email);
     Optional<Cleaner> findByEmailIgnoreCase(String email);
-    Optional<Cleaner> findFirstByUserId(Long userId);
+
+    @Query("select c from Cleaner c, UserAccount u where c.userId=u.id and c.userId=:userId and u.blockedAt is null")
+    Optional<Cleaner> findFirstByUserId(@Param("userId") Long userId);
+
+    @Override
+    @Query("select c from Cleaner c, UserAccount u where c.userId=u.id and c.id=:id and u.blockedAt is null")
+    Optional<Cleaner> findById(@Param("id") Long id);
 
     @Query("""
       select c from Cleaner c
