@@ -11,4 +11,5 @@ public interface CleanerAvailabilityService {
     List<AvailabilitySlotResponse> list(String cleanerEmail);
     List<AvailabilitySlotResponse> replace(Long cleanerId, String cleanerEmail, List<AvailabilitySlotRequest> slots);
     List<CleanerDto> findAvailable(Instant startAt, int durationMinutes);
+    boolean isAvailable(Long cleanerId, Instant startAt, int durationMinutes);
 }
