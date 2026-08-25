@@ -15,6 +15,7 @@ export function useApi(){const auth=useAuth();return useMemo(()=>{const call=<T,
   },
   cleaners:{
     list:()=>call<Cleaner[]>('/api/cleaners'),
+    upsertProfile:(name:string)=>call<Cleaner>('/api/cleaners',{method:'POST',body:JSON.stringify({name})}),
     available:(startAt:string,durationMinutes:number)=>call<Cleaner[]>(`/api/cleaners/available?startAt=${encodeURIComponent(startAt)}&durationMinutes=${durationMinutes}`),
     availability:(email:string)=>call<AvailabilitySlot[]>(`/api/cleaners/${encodeURIComponent(email)}/availability`),
     services:(email:string)=>call<CleanerOffering[]>(`/api/cleaners/${encodeURIComponent(email)}/services`),
