@@ -20,6 +20,9 @@ public interface CleanerRepository extends JpaRepository<Cleaner, Long> {
     @Query("select c from Cleaner c, UserAccount u where c.userId=u.id and c.id=:id and u.blockedAt is null")
     Optional<Cleaner> findById(@Param("id") Long id);
 
+    @Query("select c from Cleaner c, UserAccount u where c.userId=u.id and u.blockedAt is null order by c.createdAt desc")
+    List<Cleaner> findAllActive();
+
     @Query("""
       select c from Cleaner c
       where :q='' or lower(c.email) like lower(concat('%',:q,'%'))
