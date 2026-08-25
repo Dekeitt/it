@@ -6,18 +6,7 @@ import { AuthProvider } from './auth';
 import { router } from './app/router';
 import './styles.css';
 import './booking.css';
+import './notifications.css';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false },
-    mutations: { retry: 0 },
-  },
-});
-
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider><RouterProvider router={router} /></AuthProvider>
-    </QueryClientProvider>
-  </StrictMode>,
-);
+const queryClient=new QueryClient({defaultOptions:{queries:{staleTime:30_000,retry:1,refetchOnWindowFocus:false},mutations:{retry:0}}});
+createRoot(document.getElementById('root')!).render(<StrictMode><QueryClientProvider client={queryClient}><AuthProvider><RouterProvider router={router}/></AuthProvider></QueryClientProvider></StrictMode>);
