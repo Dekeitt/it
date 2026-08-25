@@ -39,24 +39,26 @@ public class CleanerAvailabilityServiceImpl implements CleanerAvailabilityServic
     @Override
     @Transactional(readOnly = true)
     public List<AvailabilitySlotResponse> list(String cleanerEmail) {
-        return availabilityRepository
-                .findByCleanerEmailIgnoreCaseOrderByDayOfWeekAscStartTimeAsc(cleanerEmail)
+        Cleaner cleaner = cleanerRepository.findByEmailIgnoreCase(cleanerEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Cleaner profile not found"));
+        return availabilityRepository.findByCleanerIdOrderByDayOfWeekAscStartTimeAsc(cleaner.getUserId())
                 .stream().map(this::toDto).toList();
     }
 
     @Override
     @Transactional
-    public List<AvailabilitySlotResponse> replace(String cleanerEmail, List<AvailabilitySlotRequest> slots) {
-        cleanerRepository.findByEmailIgnoreCase(cleanerEmail)
+    public List<AvailabilitySlotResponse> replace(Long cleanerId, String cleanerEmail, List<AvailabilitySlotRequest> slots) {
+        Cleaner cleaner = cleanerRepository.findFirstByUserId(cleanerId)
                 .orElseThrow(() -> new IllegalArgumentException("Cleaner profile not found"));
         validate(slots);
-        availabilityRepository.deleteByCleanerEmailIgnoreCase(cleanerEmail);
+        availabilityRepository.deleteByCleanerId(cleanerId);
         availabilityRepository.flush();
 
         List<CleanerAvailability> entities = new ArrayList<>();
         for (AvailabilitySlotRequest slot : slots) {
             CleanerAvailability entity = new CleanerAvailability();
-            entity.setCleanerEmail(cleanerEmail);
+            entity.setCleanerId(cleanerId);
+            entity.setCleanerEmail(cleaner.getEmail() == null ? cleanerEmail : cleaner.getEmail());
             entity.setDayOfWeek(slot.getDayOfWeek());
             entity.setStartTime(slot.getStartTime());
             entity.setEndTime(slot.getEndTime());
@@ -75,19 +77,18 @@ public class CleanerAvailabilityServiceImpl implements CleanerAvailabilityServic
         Instant endAt = startAt.plus(Duration.ofMinutes(durationMinutes));
         List<CleanerDto> result = new ArrayList<>();
         for (Cleaner cleaner : cleanerRepository.findAll()) {
-            if (isAvailable(cleaner.getEmail(), startAt, endAt)) {
+            if (isAvailable(cleaner.getUserId(), startAt, endAt)) {
                 result.add(toDto(cleaner));
             }
         }
         return result;
     }
 
-    private boolean isAvailable(String cleanerEmail, Instant startAt, Instant endAt) {
-        if (reservationRepository.existsActiveOverlap(cleanerEmail, startAt, endAt)) {
+    private boolean isAvailable(Long cleanerId, Instant startAt, Instant endAt) {
+        if (reservationRepository.existsActiveOverlap(cleanerId, startAt, endAt)) {
             return false;
         }
-        for (CleanerAvailability slot : availabilityRepository
-                .findByCleanerEmailIgnoreCaseOrderByDayOfWeekAscStartTimeAsc(cleanerEmail)) {
+        for (CleanerAvailability slot : availabilityRepository.findByCleanerIdOrderByDayOfWeekAscStartTimeAsc(cleanerId)) {
             ZoneId zone = zone(slot.getZoneId());
             ZonedDateTime localStart = startAt.atZone(zone);
             ZonedDateTime localEnd = endAt.atZone(zone);
