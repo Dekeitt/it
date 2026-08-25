@@ -1,25 +1,31 @@
 package com.clean.it.security;
 
+import com.clean.it.domain.UserAccount;
+import com.clean.it.service.UserAccountService;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
-
-import java.util.List;
 
 @Component
 public class AuthenticatedUser {
+    private final UserAccountService userAccountService;
+
+    public AuthenticatedUser(UserAccountService userAccountService) {
+        this.userAccountService = userAccountService;
+    }
+
+    public UserAccount account(Authentication authentication) {
+        return userAccountService.synchronize(authentication);
+    }
+
+    public Long id(Authentication authentication) {
+        return account(authentication).getId();
+    }
+
     public String email(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new IllegalStateException("Authenticated user is required");
+        UserAccount account = account(authentication);
+        if (account.getEmail() == null || account.getEmail().isBlank()) {
+            throw new IllegalStateException("Authenticated identity must provide email or preferred_username");
         }
-        if (authentication.getPrincipal() instanceof Jwt jwt) {
-            for (String claim : List.of("email", "preferred_username")) {
-                String value = jwt.getClaimAsString(claim);
-                if (value != null && !value.isBlank()) {
-                    return value;
-                }
-            }
-        }
-        return authentication.getName();
+        return account.getEmail();
     }
 }
