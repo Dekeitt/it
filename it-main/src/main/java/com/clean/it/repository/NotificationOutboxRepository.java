@@ -30,7 +30,7 @@ public interface NotificationOutboxRepository extends JpaRepository<Notification
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
         select n from NotificationOutbox n
-        where ((n.status in ('PENDING','FAILED') and n.availableAt <= :now)
+        where ((n.status = 'PENDING' and n.availableAt <= :now)
             or (n.status = 'PROCESSING' and n.claimedAt < :leaseExpired))
         order by n.id
         """)
