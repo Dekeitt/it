@@ -55,6 +55,12 @@ CREATE INDEX idx_payments_destination_account ON payments(stripe_destination_acc
 CREATE UNIQUE INDEX uk_payments_stripe_charge ON payments(stripe_charge_id) WHERE stripe_charge_id IS NOT NULL;
 CREATE UNIQUE INDEX uk_payments_stripe_transfer ON payments(stripe_transfer_id) WHERE stripe_transfer_id IS NOT NULL;
 
+ALTER TABLE payment_events
+    ADD COLUMN payment_id BIGINT REFERENCES payments(id),
+    ADD COLUMN stripe_payment_intent_id VARCHAR(255);
+CREATE INDEX idx_payment_events_payment ON payment_events(payment_id, event_created_at DESC);
+CREATE INDEX idx_payment_events_intent ON payment_events(stripe_payment_intent_id, event_created_at DESC);
+
 CREATE TABLE marketplace_settlements (
     id BIGSERIAL PRIMARY KEY,
     reservation_id BIGINT NOT NULL REFERENCES reservations(id),
