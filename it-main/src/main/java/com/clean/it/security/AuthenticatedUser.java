@@ -2,6 +2,7 @@ package com.clean.it.security;
 
 import com.clean.it.domain.UserAccount;
 import com.clean.it.service.UserAccountService;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
@@ -14,7 +15,11 @@ public class AuthenticatedUser {
     }
 
     public UserAccount account(Authentication authentication) {
-        return userAccountService.synchronize(authentication);
+        UserAccount account = userAccountService.synchronize(authentication);
+        if (account.getBlockedAt() != null) {
+            throw new AccessDeniedException("Account is blocked");
+        }
+        return account;
     }
 
     public Long id(Authentication authentication) {
