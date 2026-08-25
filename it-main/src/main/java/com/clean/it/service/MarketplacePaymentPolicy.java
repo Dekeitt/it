@@ -19,5 +19,5 @@ public class MarketplacePaymentPolicy {
  public long platformFee(long grossCents){if(grossCents<=0)throw new IllegalArgumentException("grossCents must be positive");return BigDecimal.valueOf(grossCents).multiply(BigDecimal.valueOf(platformFeeBps)).divide(BigDecimal.valueOf(10000),0,RoundingMode.HALF_UP).longValueExact();}
  public boolean refundReverseTransfer(){return requiredBoolean(reverseTransfer,"CONNECT_REFUND_REVERSE_TRANSFER");}
  public boolean refundApplicationFee(){return requiredBoolean(refundApplicationFee,"CONNECT_REFUND_APPLICATION_FEE");}
- private boolean requiredBoolean(String raw,String name){if(!enabled)return false;if("true".equalsIgnoreCase(raw))return true;if("false".equalsIgnoreCase(raw))return false;throw new IllegalStateException(name+" must be explicitly true or false when Connect is enabled");}
+ private boolean requiredBoolean(String raw,String name){if("true".equalsIgnoreCase(raw))return true;if("false".equalsIgnoreCase(raw))return false;throw new IllegalStateException(name+" must be explicitly true or false before refunding a connected payment");}
 }
