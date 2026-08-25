@@ -8,4 +8,5 @@ import java.util.Optional;
 public interface CleanerRepository extends JpaRepository<Cleaner, Long> {
     Optional<Cleaner> findByEmail(String email);
     Optional<Cleaner> findByEmailIgnoreCase(String email);
+    Optional<Cleaner> findFirstByUserId(Long userId);
 }
