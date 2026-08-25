@@ -8,6 +8,7 @@ import { CheckoutPage } from '../features/reservations/CheckoutPage';
 import { PaymentsPage } from '../features/payments/PaymentsPage';
 import { ReviewsPage } from '../features/reviews/ReviewsPage';
 import { AccountPage } from '../features/account/AccountPage';
+import { AuthCallbackPage } from '../features/account/AuthCallbackPage';
 
 const rootRoute = createRootRoute({ component: Shell });
 const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: HomePage });
@@ -18,9 +19,11 @@ const checkoutRoute = createRoute({ getParentRoute: () => rootRoute, path: '/che
 const paymentsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/payments', component: PaymentsPage });
 const reviewsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/reviews', component: ReviewsPage });
 const accountRoute = createRoute({ getParentRoute: () => rootRoute, path: '/account', component: AccountPage });
+const authCallbackRoute = createRoute({ getParentRoute: () => rootRoute, path: '/auth/callback', component: AuthCallbackPage });
 
 const routeTree = rootRoute.addChildren([
   homeRoute, marketplaceRoute, jobsRoute, reservationsRoute, checkoutRoute, paymentsRoute, reviewsRoute, accountRoute,
+  authCallbackRoute,
 ]);
 
 export const router = createRouter({ routeTree, defaultPreload: 'intent' });
