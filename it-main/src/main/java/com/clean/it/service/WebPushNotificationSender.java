@@ -22,9 +22,9 @@ import java.util.Map;
 @Service
 public class WebPushNotificationSender {
     private static final Logger log=LoggerFactory.getLogger(WebPushNotificationSender.class);
+    private static final ObjectMapper JSON = new ObjectMapper();
     private final WebPushSubscriptionRepository subscriptions;
     private final NotificationPreferenceService preferences;
-    private final ObjectMapper objectMapper;
     private final boolean enabled;
     private final String publicKey;
     private final String privateKey;
@@ -32,12 +32,11 @@ public class WebPushNotificationSender {
 
     public WebPushNotificationSender(WebPushSubscriptionRepository subscriptions,
                                      NotificationPreferenceService preferences,
-                                     ObjectMapper objectMapper,
                                      @Value("${notifications.push.enabled:false}") boolean enabled,
                                      @Value("${notifications.push.public-key:}") String publicKey,
                                      @Value("${notifications.push.private-key:}") String privateKey,
                                      @Value("${notifications.push.subject:mailto:admin@cleanit.local}") String subject){
-        this.subscriptions=subscriptions;this.preferences=preferences;this.objectMapper=objectMapper;this.enabled=enabled;this.publicKey=publicKey;this.privateKey=privateKey;this.subject=subject;
+        this.subscriptions=subscriptions;this.preferences=preferences;this.enabled=enabled;this.publicKey=publicKey;this.privateKey=privateKey;this.subject=subject;
     }
 
     @Transactional
@@ -63,6 +62,6 @@ public class WebPushNotificationSender {
 
     private String payload(NotificationOutbox item){
         Map<String,Object> value=new LinkedHashMap<>();value.put("title",item.getSubject());value.put("body",item.getBody());value.put("url","/notifications");
-        try{return objectMapper.writeValueAsString(value);}catch(JsonProcessingException e){throw new IllegalStateException("Could not serialize Web Push payload",e);}
+        try{return JSON.writeValueAsString(value);}catch(JsonProcessingException e){throw new IllegalStateException("Could not serialize Web Push payload",e);}
     }
 }
