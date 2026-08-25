@@ -1,5 +1,6 @@
 package com.clean.it.controller;
 
+import com.clean.it.domain.UserAccount;
 import com.clean.it.dto.AppDtos.AvailabilitySlotRequest;
 import com.clean.it.dto.AppDtos.AvailabilitySlotResponse;
 import com.clean.it.dto.AppDtos.CleanerDto;
@@ -54,10 +55,10 @@ public class CleanerController {
 
     @PostMapping
     @PreAuthorize("hasRole('CLEANER')")
-    @Operation(summary = "Crear un perfil de cleaner")
+    @Operation(summary = "Crear o actualizar el perfil del cleaner autenticado")
     public ResponseEntity<CleanerDto> createCleaner(Authentication authentication, @RequestBody CleanerDto dto) {
-        dto.setEmail(authenticatedUser.email(authentication));
-        return ResponseEntity.ok(cleanerService.createCleaner(dto));
+        UserAccount account = authenticatedUser.account(authentication);
+        return ResponseEntity.ok(cleanerService.createCleaner(account.getId(), account.getEmail(), dto));
     }
 
     @GetMapping("/{email}/availability")
@@ -72,7 +73,8 @@ public class CleanerController {
     public ResponseEntity<List<AvailabilitySlotResponse>> replaceAvailability(
             Authentication authentication,
             @Valid @RequestBody List<AvailabilitySlotRequest> slots) {
-        return ResponseEntity.ok(availabilityService.replace(authenticatedUser.email(authentication), slots));
+        UserAccount account = authenticatedUser.account(authentication);
+        return ResponseEntity.ok(availabilityService.replace(account.getId(), account.getEmail(), slots));
     }
 
     @GetMapping("/available")
