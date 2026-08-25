@@ -8,6 +8,14 @@ spring:
       host: ${SPRING_REDIS_HOST}
       port: ${SPRING_REDIS_PORT:6379}
       password: ${SPRING_REDIS_PASSWORD:}
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${SMTP_AUTH:true}
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS:true}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -28,3 +36,19 @@ stripe:
   secret-key: ${STRIPE_SECRET_KEY}
   publishable-key: ${STRIPE_PUBLISHABLE_KEY}
   webhook-secret: ${STRIPE_WEBHOOK_SECRET}
+
+notifications:
+  worker:
+    enabled: ${NOTIFICATIONS_WORKER_ENABLED:true}
+    delay-ms: ${NOTIFICATIONS_WORKER_DELAY_MS:5000}
+  reminders:
+    enabled: ${NOTIFICATIONS_REMINDERS_ENABLED:true}
+    delay-ms: ${NOTIFICATIONS_REMINDERS_DELAY_MS:3600000}
+  email:
+    enabled: ${NOTIFICATIONS_EMAIL_ENABLED:false}
+    from: ${NOTIFICATIONS_EMAIL_FROM:no-reply@cleanit.es}
+  push:
+    enabled: ${NOTIFICATIONS_PUSH_ENABLED:false}
+    public-key: ${VAPID_PUBLIC_KEY:}
+    private-key: ${VAPID_PRIVATE_KEY:}
+    subject: ${VAPID_SUBJECT:mailto:admin@cleanit.es}
