@@ -20,7 +20,7 @@
     "@stripe/react-stripe-js": "6.8.2",
     "@stripe/stripe-js": "9.10.0",
     "@tanstack/react-query": "5.101.4",
-    "@tanstack/react-router": "1.131.35",
+    "@tanstack/react-router": "1.170.32",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "react-hook-form": "7.85.0",
