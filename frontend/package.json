@@ -22,14 +22,14 @@
     "@tanstack/react-query": "5.101.4",
     "@tanstack/react-router": "1.131.35",
     "react": "19.1.1",
-    "react-dom": "19.1.1",
+    "react-dom": "19.2.8",
     "react-hook-form": "7.85.0",
     "zod": "4.1.5",
     "@capacitor/core": "8.5.0"
   },
   "devDependencies": {
     "@types/react": "19.1.10",
-    "@types/react-dom": "19.1.7",
+    "@types/react-dom": "19.2.5",
     "@vitejs/plugin-react": "6.1.0",
     "typescript": "7.0.2",
     "vite": "8.2.2",
