@@ -19,7 +19,7 @@
     "@hookform/resolvers": "5.2.1",
     "@stripe/react-stripe-js": "6.8.2",
     "@stripe/stripe-js": "9.10.0",
-    "@tanstack/react-query": "5.101.4",
+    "@tanstack/react-query": "5.102.5",
     "@tanstack/react-router": "1.131.35",
     "react": "19.1.1",
     "react-dom": "19.1.1",
